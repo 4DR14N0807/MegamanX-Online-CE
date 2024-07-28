@@ -35,6 +35,10 @@ public partial class Level {
 	//Optimize this function, it will be called a lot
 	public List<Cell> getGridCells(Shape shape) {
 		var cells = new List<Cell>();
+		int startX = MathInt.Floor(shape.minX);
+		int endX = MathInt.Floor(shape.minX);
+		int startY = MathInt.Floor(shape.maxY);
+		int endY = MathInt.Floor(shape.maxY);
 
 		//Line case
 		if (shape.points.Count == 2) {
@@ -48,9 +52,9 @@ public partial class Level {
 			//var mag = maxDist / (this.cellWidth/2);
 			float mag = cellWidth / 2;
 			HashSet<int> usedCoords = new HashSet<int>();
-			while (dist < maxDist) {
-				int i = MathInt.Floor((curY / height) * grid.Count);
-				int j = MathInt.Floor((curX / width) * grid[0].Count);
+			while (dist <= maxDist) {
+				int i = MathInt.Floor(curY / cellWidth);
+				int j = MathInt.Floor(curX / cellWidth);
 				curX += dir.x * mag;
 				curY += dir.y * mag;
 				dist += mag;
@@ -63,13 +67,18 @@ public partial class Level {
 			return cells;
 		}
 
-		int minI = Math.Clamp(MathInt.Floor((shape.minY / height) * grid.Count), 0, grid.Count - 1);
-		int minJ = Math.Clamp(MathInt.Floor((shape.minX / width) * grid[0].Count), 0, grid[0].Count - 1);
-		int maxI = Math.Clamp(MathInt.Floor((shape.maxY / height) * grid.Count), 0, grid.Count - 1);
-		int maxJ = Math.Clamp(MathInt.Floor((shape.maxX / width) * grid[0].Count), 0, grid[0].Count - 1);
+		int minY = MathInt.Floor(shape.minY / cellWidth);
+		int minX = MathInt.Floor(shape.minX / cellWidth);
+		int maxY = MathInt.Floor(shape.maxY / cellWidth);
+		int maxX = MathInt.Floor(shape.maxX / cellWidth);
 
-		for (int i = minI; i <= maxI; i++) {
-			for (int j = minJ; j <= maxJ; j++) {
+		minY = Math.Clamp(minY, 0, grid.Count - 1);
+		maxY = Math.Clamp(maxY, 0, grid.Count - 1);
+		minX = Math.Clamp(minX, 0, grid[0].Count - 1);
+		maxX = Math.Clamp(maxX, 0, grid[0].Count - 1);
+
+		for (int i = minY; i <= maxY; i++) {
+			for (int j = minX; j <= maxX; j++) {
 				cells.Add(new Cell(i, j, grid[i][j]));
 			}
 		}
@@ -353,7 +362,7 @@ public partial class Level {
 		return checkCollisionShape(shape, exclusions);
 	}
 
-	public CollideData checkCollisionShape(Shape shape, List<GameObject> exclusions) {
+	public CollideData checkCollisionShape(Shape shape, List<GameObject>? exclusions) {
 		var gameObjects = getGameObjectsInSameCell(shape);
 		foreach (var go in gameObjects) {
 			if (go.collider == null) continue;
@@ -368,7 +377,7 @@ public partial class Level {
 		return null;
 	}
 
-	public List<CollideData> checkCollisionsShape(Shape shape, List<GameObject> exclusions) {
+	public List<CollideData> checkCollisionsShape(Shape shape, List<GameObject>? exclusions) {
 		var hitDatas = new List<CollideData>();
 		var gameObjects = getGameObjectsInSameCell(shape);
 		foreach (var go in gameObjects) {
@@ -400,10 +409,15 @@ public partial class Level {
 	) {
 		List<CollideData> collideDatas = new List<CollideData>();
 		// Use custom terrain collider by default.
-		Collider terrainCollider = actor.getTerrainCollider();
+		Collider? terrainCollider = actor.getTerrainCollider();
 		// If terrain collider is not used or is null we use the default colliders.
 		if (terrainCollider == null) {
 			terrainCollider = actor.standartCollider;
+		}
+		if (actor.spriteToCollider.ContainsKey(actor.sprite.name) &&
+			actor.spriteToCollider[actor.sprite.name] == null
+		) {
+			return collideDatas;
 		}
 		// If there is no collider we return.
 		if (actor.standartCollider == null) {
@@ -584,7 +598,7 @@ public partial class Level {
 					if (!isRequesterAI) continue;
 					else if (!character.disguiseCoverBlown) continue;
 				}
-				if (character.isInvisibleBS.getValue()) continue;
+				if (character.isStealthy(alliance)) continue;
 			}
 
 			if (!includeAllies && !damagable.canBeDamaged(alliance, null, null)) continue;
@@ -599,7 +613,7 @@ public partial class Level {
 		return targets;
 	}
 
-	public Actor getClosestTarget(
+	public Actor? getClosestTarget(
 		Point pos, int alliance, bool checkWalls,
 		float? aMaxDist = null, bool isRequesterAI = false,
 		bool includeAllies = false, Actor callingActor = null

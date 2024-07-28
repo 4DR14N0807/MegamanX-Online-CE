@@ -21,15 +21,16 @@ public class ServerPlayer {
 	[ProtoMember(13)] public bool isSpectator;
 	[ProtoMember(14)] public int? autobalanceAlliance;
 	[ProtoMember(15)] public int? startPing;
+	[ProtoMember(16)] public int charNumSub;
 
 	[JsonIgnore]
 	public NetConnection? connection;
 
 	[JsonIgnore]
 	public bool alreadyAutobalanced;
-
+	#nullable disable
 	public ServerPlayer() { }
-
+	#nullable enable
 	public ServerPlayer(
 		string name, int id, bool isHost, int charNum,
 		int? preferredAlliance, string deviceId, NetConnection? connection, int? startPing

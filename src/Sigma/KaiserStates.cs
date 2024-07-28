@@ -334,7 +334,7 @@ public class KaiserSigmaVirusState : CharState {
 		if (isLerpingBack) {
 			if (viralSigmaHeadReturn == null) {
 				viralSigmaHeadReturn = new Anim(
-					character.pos, "sigma3_kaiser_virus_return",
+					character.pos, "kaisersigma_virus_return",
 					character.xDir, player.getNextActorNetId(), false, sendRpc: true
 				) {
 					zIndex = character.zIndex
@@ -346,7 +346,7 @@ public class KaiserSigmaVirusState : CharState {
 
 			// Note: Code to shrink is in Anim.cs
 			if (isRelocating && relocatedKaiserShell == null) {
-				relocatedKaiserShell = new Anim(kaiserSigmaDestPos, "sigma3_kaiser_empty", character.xDir, player.getNextActorNetId(), false, sendRpc: true, fadeIn: true);
+				relocatedKaiserShell = new Anim(kaiserSigmaDestPos, "kaisersigma_empty", character.xDir, player.getNextActorNetId(), false, sendRpc: true, fadeIn: true);
 			}
 
 			Point lerpDestPos = kaiserSigmaDestPos.addxy(12 * character.xDir, -94);
@@ -388,7 +388,7 @@ public class KaiserSigmaVirusState : CharState {
 
 	public override void onEnter(CharState oldState) {
 		base.onEnter(oldState);
-		kaiserShell = new Anim(character.pos, "sigma3_kaiser_empty_fadeout", character.xDir, player.getNextActorNetId(), false, sendRpc: true) { zIndex = character.zIndex - 10 };
+		kaiserShell = new Anim(character.pos, "kaisersigma_empty_fadeout", character.xDir, player.getNextActorNetId(), false, sendRpc: true) { zIndex = character.zIndex - 10 };
 
 		character.changePos(character.pos.addxy(12 * character.xDir, -94));
 		origXDir = character.xDir;
@@ -458,7 +458,7 @@ public class KaiserSigmaBeamState : KaiserSigmaBaseState {
 				float spawnSpeed = 150;
 				var partSpawnPos = shootPos.addxy(Helpers.cosd(partSpawnAngle) * spawnRadius, Helpers.sind(partSpawnAngle) * spawnRadius);
 				var partVel = partSpawnPos.directionToNorm(shootPos).times(spawnSpeed);
-				new Anim(partSpawnPos, "sigma3_kaiser_charge", 1, player.getNextActorNetId(), false, sendRpc: true) {
+				new Anim(partSpawnPos, "kaisersigma_charge", 1, player.getNextActorNetId(), false, sendRpc: true) {
 					vel = partVel,
 					ttl = ((spawnRadius - 2) / spawnSpeed),
 				};
@@ -466,7 +466,10 @@ public class KaiserSigmaBeamState : KaiserSigmaBaseState {
 
 			if (chargeTime > 1f) {
 				state = 1;
-				proj = new KaiserSigmaBeamProj(new KaiserBeamWeapon(), shootPos, character.xDir, !isDown, player, player.getNextActorNetId(), rpc: true);
+				proj = new KaiserSigmaBeamProj(
+					new KaiserBeamWeapon(), shootPos, character.xDir,
+					!isDown, player, player.getNextActorNetId(), rpc: true
+				);
 				beamSound = character.playSound("kaiserSigmaBeam", sendRpc: true);
 			}
 		} else if (state == 1) {
@@ -503,20 +506,21 @@ public class KaiserSigmaBeamProj : Projectile {
 	public float beamWidth;
 	const float beamLen = 150;
 	const float maxBeamTime = 2;
-	public KaiserSigmaBeamProj(Weapon weapon, Point pos, int xDir, bool isUp, Player player, ushort netProjId, bool rpc = false) :
-		base(weapon, pos, 1, 0, 1, player, "empty", 0, 0.15f, netProjId, player.ownedByLocalPlayer) {
+	public KaiserSigmaBeamProj(
+		Weapon weapon, Point pos, int xDir, bool isUp, Player player, ushort netProjId, bool rpc = false
+	) : base(
+		weapon, pos, 1, 0, 1, player, "empty", Global.miniFlinch, 0.15f, netProjId, player.ownedByLocalPlayer
+	) {
 		projId = (int)ProjIds.Sigma3KaiserBeam;
 		setIndestructableProperties();
 
-		if (ownedByLocalPlayer) {
-			if (xDir == 1 && !isUp) beamAngle = 45;
-			if (xDir == -1 && !isUp) beamAngle = 135;
-			if (xDir == -1 && isUp) beamAngle = 225;
-			if (xDir == 1 && isUp) beamAngle = 315;
-		}
+		if (xDir == 1 && !isUp) beamAngle = 45;
+		if (xDir == -1 && !isUp) beamAngle = 135;
+		if (xDir == -1 && isUp) beamAngle = 225;
+		if (xDir == 1 && isUp) beamAngle = 315;
 
 		if (rpc) {
-			rpcCreate(pos, player, netProjId, xDir);
+			rpcCreate(pos, player, netProjId, xDir, (byte)(isUp ? 1 : 0));
 		}
 	}
 
@@ -528,8 +532,6 @@ public class KaiserSigmaBeamProj : Projectile {
 		} else {
 			changeGlobalCollider(getPoints());
 		}
-
-		if (!ownedByLocalPlayer) return;
 
 		if (time < 1) {
 			beamWidth += Global.spf * 20;
@@ -551,12 +553,11 @@ public class KaiserSigmaBeamProj : Projectile {
 		Point pos1 = new Point(beamLen * Helpers.cosd(ang1), beamLen * Helpers.sind(ang1));
 		Point pos2 = new Point(beamLen * Helpers.cosd(ang2), beamLen * Helpers.sind(ang2));
 
-		var points = new List<Point>
-		{
-				pos,
-				pos.add(pos1),
-				pos.add(pos2),
-			};
+		var points = new List<Point> {
+			pos,
+			pos.add(pos1),
+			pos.add(pos2),
+		};
 		return points;
 	}
 
@@ -581,7 +582,7 @@ public class KaiserSigmaMissileProj : Projectile {
 	public float maxSpeed = 150;
 	public float health = 2;
 	public KaiserSigmaMissileProj(Weapon weapon, Point pos, Player player, ushort netProjId, bool rpc = false) :
-		base(weapon, pos, 1, 0, 2, player, "sigma3_kaiser_missile", Global.defFlinch, 0f, netProjId, player.ownedByLocalPlayer) {
+		base(weapon, pos, 1, 0, 2, player, "kaisersigma_missile", Global.defFlinch, 0f, netProjId, player.ownedByLocalPlayer) {
 		projId = (int)ProjIds.Sigma3KaiserMissile;
 		maxTime = 2f;
 		fadeOnAutoDestroy = true;
@@ -657,7 +658,7 @@ public class KaiserSigmaMineProj : Projectile, IDamagable {
 	int type;
 	bool startWall;
 	public KaiserSigmaMineProj(Weapon weapon, Point pos, int xDir, int type, Player player, ushort netProjId, bool rpc = false) :
-		base(weapon, pos, xDir, 100, 4, player, "sigma3_kaiser_mine", Global.defFlinch, 0.15f, netProjId, player.ownedByLocalPlayer) {
+		base(weapon, pos, xDir, 100, 4, player, "kaisersigma_mine", Global.defFlinch, 0.15f, netProjId, player.ownedByLocalPlayer) {
 		projId = (int)ProjIds.Sigma3KaiserMine;
 		maxTime = 4f;
 		this.type = type;
@@ -721,7 +722,7 @@ public class KaiserSigmaMineProj : Projectile, IDamagable {
 		}
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 		health -= damage;
 		if (health <= 0) {
 			destroySelf();
@@ -814,24 +815,5 @@ public class KaiserSigmaRevive : CharState {
 		character.alpha = 0;
 		player.sigmaAmmo = player.sigmaMaxAmmo;
 		KaiserSigma kaiserSigma = character as KaiserSigma;
-		if (!player.ownedByLocalPlayer) {
-			return;
-		}
-		if (kaiserSigma.kaiserExhaustL == null) {
-			kaiserSigma.kaiserExhaustL = new Anim(
-				character.pos, "sigma3_kaiser_exhaust", character.xDir,
-				player.getNextActorNetId(), false, sendRpc: true
-			) {
-				visible = false
-			};
-		}
-		if (kaiserSigma.kaiserExhaustR == null) {
-			kaiserSigma.kaiserExhaustR = new Anim(
-				character.pos, "sigma3_kaiser_exhaust", character.xDir,
-				player.getNextActorNetId(), false, sendRpc: true
-			) {
-				visible = false
-			};
-		}
 	}
 }

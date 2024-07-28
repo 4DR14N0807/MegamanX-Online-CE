@@ -363,7 +363,7 @@ public partial class RPCCreateProj : RPC {
 				}
 
 			case (int)ProjIds.ChillPIceShot:
-				proj = new ChillPIceProj(new ChillPIceShotWeapon(), pos, xDir, player, 0, netProjByte);
+				proj = new ChillPIceProj(new ChillPIceShotWeapon(), pos, xDir, player, extraData[0], netProjByte);
 				break;
 			case (int)ProjIds.ChillPIcePenguin:
 				proj = new ChillPIceStatueProj(new ChillPIceStatueWeapon(), pos, xDir, player, netProjByte);
@@ -468,20 +468,20 @@ public partial class RPCCreateProj : RPC {
 				break;
 			case (int)ProjIds.WildHorseKick:
 				proj = new FlamethrowerProj(
-					new VileFlamethrower(VileFlamethrowerType.WildHorseKick),
-					pos, xDir, false, player, netProjByte
+					WildHorseKick.netWeapon,
+					pos, xDir, extraData[0] == 1, player, netProjByte
 				);
 				break;
 			case (int)ProjIds.SeaDragonRage:
 				proj = new FlamethrowerProj(
-					new VileFlamethrower(VileFlamethrowerType.SeaDragonRage),
-					pos, xDir, false, player, netProjByte
+					SeaDragonRage.netWeapon,
+					pos, xDir, extraData[0] == 1, player, netProjByte
 				);
 				break;
 			case (int)ProjIds.DragonsWrath:
 				proj = new FlamethrowerProj(
-					new VileFlamethrower(VileFlamethrowerType.DragonsWrath),
-					pos, xDir, false, player, netProjByte
+					DragonsWrath.netWeapon,
+					pos, xDir, extraData[0] == 1, player, netProjByte
 				);
 				break;
 			case (int)ProjIds.RisingSpecter:
@@ -644,7 +644,7 @@ public partial class RPCCreateProj : RPC {
 				proj = new KaiserSigmaMissileProj(new KaiserMissileWeapon(), pos, player, netProjByte);
 				break;
 			case (int)ProjIds.Sigma3KaiserBeam:
-				proj = new KaiserSigmaBeamProj(new KaiserBeamWeapon(), pos, xDir, false, player, netProjByte);
+				proj = new KaiserSigmaBeamProj(new KaiserBeamWeapon(), pos, xDir, extraData[0] == 1, player, netProjByte);
 				break;
 			case (int)ProjIds.TSeahorseAcid1:
 				proj = new TSeahorseAcidProj(ToxicSeahorse.getWeapon(), pos, xDir, player, netProjByte);
@@ -670,9 +670,6 @@ public partial class RPCCreateProj : RPC {
 				break;
 			case (int)ProjIds.VoltCSparkle:
 				proj = new VoltCSparkleProj(VoltCatfish.getWeapon(), pos, xDir, player, netProjByte);
-				break;
-			case (int)ProjIds.VoltCSuck:
-				proj = new VoltCSuckProj(VoltCatfish.getWeapon(), pos, xDir, null, player, netProjByte);
 				break;
 			case (int)ProjIds.VoltCTriadThunder:
 				proj = new VoltCTriadThunderProj(

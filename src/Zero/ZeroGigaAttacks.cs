@@ -18,6 +18,7 @@ public class RakuhouhaWeapon : Weapon {
 	public RakuhouhaWeapon() : base() {
 		//damager = new Damager(player, 4, Global.defFlinch, 0.5f);
 		ammo = 0;
+		maxAmmo = 28;
 		rateOfFire = 1;
 		index = (int)WeaponIds.Rakuhouha;
 		weaponBarBaseIndex = 27;
@@ -27,10 +28,12 @@ public class RakuhouhaWeapon : Weapon {
 		type = (int)ZeroGigaType.Rakuhouha;
 		displayName = "Rakuhouha";
 		description = new string[] { "Channels stored energy in one blast.", "Energy cost: 16" };
+		drawGrayOnLowAmmo = true;
+		drawRoundedDown = true;
 	}
 
 	public override float getAmmoUsage(int chargeLevel) {
-		return 16;
+		return 14;
 	}
 
 	public static Weapon getWeaponFromIndex(int index) {
@@ -49,6 +52,7 @@ public class RekkohaWeapon : Weapon {
 	public RekkohaWeapon() : base() {
 		//damager = new Damager(player, 4, Global.defFlinch, 0.5f);
 		ammo = 0;
+		maxAmmo = 28;
 		rateOfFire = 2;
 		index = (int)WeaponIds.Rekkoha;
 		weaponBarBaseIndex = 40;
@@ -58,10 +62,12 @@ public class RekkohaWeapon : Weapon {
 		type = (int)ZeroGigaType.Rekkoha;
 		displayName = "Rekkoha";
 		description = new string[] { "Summon down pillars of light energy.", "Energy cost: 32" };
+		drawGrayOnLowAmmo = true;
+		drawRoundedDown = true;
 	}
 
 	public override float getAmmoUsage(int chargeLevel) {
-		return 32;
+		return 28;
 	}
 }
 
@@ -71,6 +77,7 @@ public class CFlasher : Weapon {
 	public CFlasher() : base() {
 		//damager = new Damager(player, 2, 0, 0.5f);
 		ammo = 0;
+		maxAmmo = 28;
 		rateOfFire = 1f;
 		index = (int)WeaponIds.CFlasher;
 		weaponBarBaseIndex = 41;
@@ -80,10 +87,12 @@ public class CFlasher : Weapon {
 		type = (int)ZeroGigaType.CFlasher;
 		displayName = "Messenkou";
 		description = new string[] { "A less damaging blast that can pierce enemies.", "Energy cost: 8" };
+		drawGrayOnLowAmmo = true;
+		drawRoundedDown = true;
 	}
 
 	public override float getAmmoUsage(int chargeLevel) {
-		return 8;
+		return 7;
 	}
 }
 
@@ -91,6 +100,7 @@ public class ShinMessenkou : Weapon {
 	public ShinMessenkou() : base() {
 		//damager = new Damager(player, 4, Global.defFlinch, 0.5f);
 		ammo = 0;
+		maxAmmo = 28;
 		rateOfFire = 1f;
 		index = (int)WeaponIds.ShinMessenkou;
 		killFeedIndex = 86;
@@ -98,10 +108,12 @@ public class ShinMessenkou : Weapon {
 		weaponBarBaseIndex = 43;
 		weaponBarIndex = 37;
 		weaponSlotIndex = 64;
+		drawGrayOnLowAmmo = true;
+		drawRoundedDown = true;
 	}
 
 	public override float getAmmoUsage(int chargeLevel) {
-		return 16;
+		return 14;
 	}
 }
 
@@ -393,6 +405,11 @@ public class RekkohaProj : Projectile {
 			rpcCreate(pos, player, netProjId, xDir);
 		}
 		netcodeOverride = NetcodeModel.FavorDefender;
+
+		isOwnerLinked = true;
+		if (player.character != null) {
+			owningActor = player.character;
+		}
 	}
 
 	public override void update() {
@@ -539,6 +556,7 @@ public class RekkohaEffect : Effect {
 public class DarkHoldWeapon : Weapon {
 	public DarkHoldWeapon() : base() {
 		ammo = 0;
+		maxAmmo = 28;
 		rateOfFire = 3f;
 		index = (int)WeaponIds.DarkHold;
 		type = (int)ZeroGigaType.DarkHold;
@@ -546,10 +564,12 @@ public class DarkHoldWeapon : Weapon {
 		weaponBarBaseIndex = 69;
 		weaponBarIndex = 58;
 		weaponSlotIndex = 122;
+		drawGrayOnLowAmmo = true;
+		drawRoundedDown = true;
 	}
 
 	public override float getAmmoUsage(int chargeLevel) {
-		return 16;
+		return 14;
 	}
 }
 
@@ -723,6 +743,7 @@ public class DarkHoldState : CharState {
 		character.frameSpeed = 0;
 		character.frameIndex = frameIndex;
 		character.stopMoving();
+		character.isDarkHoldState = true;
 	}
 
 	public override void onExit(CharState newState) {
@@ -730,5 +751,6 @@ public class DarkHoldState : CharState {
 		character.useGravity = true;
 		character.frameSpeed = 1;
 		character.darkHoldInvulnTime = 1;
+		character.isDarkHoldState = false;
 	}
 }

@@ -15,6 +15,9 @@ public class RPCCustom : RPC {
 	// Normally you want to use the first byte to determine the RPC type.
 	// The call another custom RPC from it.
 	public override void invoke(params byte[] arguments) {
+		if (Global.serverClient == null) {
+			return;
+		}
 		byte type = arguments[0];
 		byte[] finalArguments = arguments[1..];
 
@@ -32,6 +35,9 @@ public class RPCCustom : RPC {
 			case (byte)RpcCustomType.UpdateMaxTime:
 				RPC.updateMaxTime.invoke(finalArguments);
 				break;
+			case (byte)RpcCustomType.ReviveSigma:
+				RPC.reviveSigma.invoke(finalArguments);
+				break;
 		}
 	}
 
@@ -47,12 +53,21 @@ public class RPCCustom : RPC {
 	}
 }
 
+// Does nothing by default.
+// Used when a unknow index is sent.
+public class RPCUnknown : RPC {
+	public RPCUnknown() {
+		netDeliveryMethod = NetDeliveryMethod.ReliableOrdered;
+	}
+}
+
 // For the RPCCustom "type" argument.
 public enum RpcCustomType {
 	ChangeOwnership,
 	Reflect,
 	Deflect,
-	UpdateMaxTime
+	UpdateMaxTime,
+	ReviveSigma
 }
 
 public class RpcChangeOwnership : RPC {
@@ -62,7 +77,7 @@ public class RpcChangeOwnership : RPC {
 
 	public override void invoke(byte[] arguments) {
 		ushort netId = BitConverter.ToUInt16(new byte[] { arguments[1], arguments[2] }, 0);
-		Actor actor = Global.level.getActorByNetId(netId);
+		Actor? actor = Global.level.getActorByNetId(netId, true);
 		Player player = Global.level.getPlayerById(arguments[0]);
 		if (actor is not Projectile proj) {
 			return;
@@ -93,7 +108,7 @@ public class RpcReflect : RPC {
 
 	public override void invoke(byte[] arguments) {
 		ushort netId = BitConverter.ToUInt16(new byte[] { arguments[1], arguments[2] }, 0);
-		Actor actor = Global.level.getActorByNetId(netId);
+		Actor? actor = Global.level.getActorByNetId(netId);
 		Player player = Global.level.getPlayerById(arguments[0]);
 		if (actor is not Projectile proj) {
 			return;
@@ -122,7 +137,7 @@ public class RpcDeflect : RPC {
 
 	public override void invoke(byte[] arguments) {
 		ushort netId = BitConverter.ToUInt16(new byte[] { arguments[1], arguments[2] }, 0);
-		Actor actor = Global.level.getActorByNetId(netId);
+		Actor? actor = Global.level.getActorByNetId(netId);
 		Player player = Global.level.getPlayerById(arguments[0]);
 		if (actor is not Projectile proj) {
 			return;
@@ -152,7 +167,7 @@ public class RpcUpdateMaxTime : RPC {
 	public override void invoke(byte[] arguments) {
 		float newMaxTime = BitConverter.ToUInt16(new byte[] { arguments[2], arguments[3] }, 0);
 		ushort netId = BitConverter.ToUInt16(new byte[] { arguments[0], arguments[1] }, 0);
-		Actor actor = Global.level.getActorByNetId(netId);
+		Actor? actor = Global.level.getActorByNetId(netId);
 		if (actor is not Projectile proj) {
 			return;
 		}
@@ -177,5 +192,40 @@ public class RpcUpdateMaxTime : RPC {
 			timeBytes[1]
 		};
 		RPC.custom.sendRpc((byte)RpcCustomType.UpdateMaxTime, sendValues);
+	}
+}
+
+public class RpcReviveSigma : RPC {
+	public RpcReviveSigma() {
+		netDeliveryMethod = NetDeliveryMethod.ReliableOrdered;
+	}
+
+	public override void invoke(byte[] arguments) {
+		Player player = Global.level.getPlayerById(arguments[0]);
+		ushort netId = BitConverter.ToUInt16(arguments[2..4]);
+		float posX = BitConverter.ToSingle(arguments[4..8]);
+		float posY = BitConverter.ToSingle(arguments[8..12]);
+	
+		player.reviveSigmaNonOwner(arguments[1], new Point(posX, posY), netId);
+	}
+
+	public void sendRpc( 
+		int form, Point spawnPoint, int playerId, ushort netId) {
+		if (Global.serverClient == null) {
+			return;
+		}
+		byte[] netIdBytes = BitConverter.GetBytes(netId);
+		byte[] posXBytes = BitConverter.GetBytes(spawnPoint.x);
+		byte[] posYBytes = BitConverter.GetBytes(spawnPoint.y);
+
+		byte[] sendValues = new byte[] {
+			(byte)playerId,
+			(byte)form,
+			netIdBytes[0],
+			netIdBytes[1],
+			posXBytes[0], posXBytes[1], posXBytes[2], posXBytes[3],
+			posYBytes[0], posYBytes[1], posYBytes[2], posYBytes[3],
+		};
+		RPC.custom.sendRpc((byte)RpcCustomType.ReviveSigma, sendValues);
 	}
 }

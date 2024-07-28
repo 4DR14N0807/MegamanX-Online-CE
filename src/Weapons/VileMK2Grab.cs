@@ -9,11 +9,11 @@ public class VileMK2Grab : Weapon {
 }
 
 public class VileMK2GrabState : CharState {
-	public Character victim;
+	public Character? victim;
 	float leechTime = 1;
 	public bool victimWasGrabbedSpriteOnce;
 	float timeWaiting;
-	public VileMK2GrabState(Character victim) : base("grab", "", "", "") {
+	public VileMK2GrabState(Character? victim) : base("grab", "", "", "") {
 		this.victim = victim;
 		grabTime = VileMK2Grabbed.maxGrabTime;
 	}
@@ -52,7 +52,7 @@ public class VileMK2GrabState : CharState {
 			damager.applyDamage(victim, false, new VileMK2Grab(), character, (int)ProjIds.VileMK2Grab);
 		}
 
-		if (frameTime >= 2 && player.input.isPressed(Control.Special1, player)) {
+		if (stateFrames >= 2 && player.input.isPressed(Control.Special1, player)) {
 			character.changeState(new Idle(), true);
 			return;
 		}
@@ -75,6 +75,6 @@ public class VileMK2GrabState : CharState {
 
 public class VileMK2Grabbed : GenericGrabbedState {
 	public const float maxGrabTime = 4;
-	public VileMK2Grabbed(Character grabber) : base(grabber, maxGrabTime, "vilemk2_grab") {
+	public VileMK2Grabbed(Character? grabber) : base(grabber, maxGrabTime, "vilemk2_grab") {
 	}
 }

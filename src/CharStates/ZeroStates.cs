@@ -27,7 +27,7 @@ public class HyperZeroStart : CharState {
 					}
 					if (virusAnim[i].destroyed) {
 						character.playSound("shingetsurinx5", true);
-						if (frameTime > 55) {
+						if (stateFrames > 55) {
 							virusAnim[i] = null!;
 							continue;
 						}
@@ -46,7 +46,7 @@ public class HyperZeroStart : CharState {
 						virusAnim[i] = createVirusAnim();
 					}
 				}
-				if (animCount == 0 && frameTime > 55 && virusEffectParts != null) {
+				if (animCount == 0 && stateFrames > 55 && virusEffectParts != null) {
 					virusEffectParts.destroySelf();
 				}
 			}
@@ -102,7 +102,7 @@ public class HyperZeroStart : CharState {
 			character.invulnTime = 0.5f;
 		}
 		if (zero.isAwakened || zero.isBlack) {
-			zero.hyperModeTimer = 20 * 60;
+			zero.hyperModeTimer = Zero.maxBlackZeroTime + 30;
 		}
 		virusEffectParts?.destroySelf();
 		bool playedHitSound = false;

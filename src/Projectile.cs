@@ -9,8 +9,8 @@ public class Projectile : Actor {
 	public Player owner {
 		get { return damager.owner; }
 	}
-	public string fadeSprite;
-	public string fadeSound;
+	public string fadeSprite = "";
+	public string fadeSound = "";
 	public float time = 0;
 	public float maxTime = float.MaxValue;
 	public bool fadeOnAutoDestroy;
@@ -34,14 +34,43 @@ public class Projectile : Actor {
 	public bool isDeflectShield;
 	public bool shouldVortexSuck = true;
 	bool damagedOnce;
-	public ShaderWrapper nightmareZeroShader;
 	//public int? destroyFrames;
 	public Player ownerPlayer;
-	public Actor hitboxActor;
+	public Actor? hitboxActor;
 
 	public bool isMelee;
 	public int meleeId = -1;
-	public Actor owningActor;
+	public bool isOwnerLinked;
+	public Actor? owningActor;
+
+	const float leeway = 500;
+
+	public float wallCrawlSpeed = 250;
+	public bool wallCrawlUpdateAngle;
+
+	bool clangedOnce;
+	bool acidFadeOnce;
+	
+	public float shieldBounceTimeX = 0;
+	public float shieldBounceTimeY = 0;
+	public float shieldBounceMaxTime = 0.25f;
+	public float halfShieldBounceMaxTime => (shieldBounceMaxTime / 2f);
+	
+	// Wall crawl.
+	public struct WallPathNodeData {
+		public WallPathNode bestStartNode;
+		public Point? bestPointOnLine;
+		public float minDist;
+	}
+	int wallCrawlDir = 1;
+	WallPathNode? currentNode;
+	// Legacy wall crawl stuff.
+	bool useLegacyWallCrawl;
+	GameObject? currentWall;
+	List<Point> dests = new();
+	int? destIndex;
+	float initWallCooldown;
+	
 
 	public Projectile(
 		Weapon weapon, Point pos, int xDir, float speed, float damage,
@@ -91,7 +120,6 @@ public class Projectile : Actor {
 		return (int)(Helpers.to360(angle.Value) * 0.5f);
 	}
 
-	const float leeway = 500;
 	public override void update() {
 		base.update();
 
@@ -150,7 +178,7 @@ public class Projectile : Actor {
 		*/
 	}
 
-	public override List<ShaderWrapper> getShaders() {
+	public override List<ShaderWrapper>? getShaders() {
 		var shaders = new List<ShaderWrapper>();
 		if (shaders.Count > 0) {
 			return shaders;
@@ -261,12 +289,15 @@ public class Projectile : Actor {
 		forceNetUpdateNextFrame = true;
 	}
 
-	public bool getHeadshotVictim(Player player, out IDamagable victim, out Point? hitPoint) {
+	public bool getHeadshotVictim(Player player, out IDamagable? victim, out Point? hitPoint) {
 		victim = null;
 		hitPoint = null;
 		float w = collider?.shape.getRect().w() ?? 2;
-		foreach (var enemy in Global.level.players) {
-			var headPosNullable = enemy?.character?.getHeadPos();
+		foreach (Player enemy in Global.level.players) {
+			if (enemy.character == null) {
+				continue;
+			}
+			var headPosNullable = enemy.character.getHeadPos();
 			if (headPosNullable != null && enemy.character.canBeDamaged(player.alliance, player.id, projId)) {
 				var headPos = headPosNullable.Value;
 				Shape headShape = enemy.character.getHeadRect().getShape();
@@ -290,7 +321,7 @@ public class Projectile : Actor {
 	}
 
 	public override void destroySelf(
-		string spriteName = null, string fadeSound = null,
+		string spriteName = "", string fadeSound = "",
 		bool disableRpc = false, bool doRpcEvenIfNotOwned = false,
 		bool favorDefenderProjDestroy = false
 	) {
@@ -302,7 +333,7 @@ public class Projectile : Actor {
 	}
 
 	public void destroySelfNoEffect(bool disableRpc = false, bool doRpcEvenIfNotOwned = false) {
-		base.destroySelf(null, null, disableRpc, doRpcEvenIfNotOwned);
+		base.destroySelf("", "", disableRpc, doRpcEvenIfNotOwned);
 	}
 
 	public static bool charsCanClang(Character attacker, Character defender) {
@@ -327,7 +358,6 @@ public class Projectile : Actor {
 		return (this is GenericMeleeProj || this is SigmaSlashProj);
 	}
 
-	bool clangedOnce;
 	public override void onCollision(CollideData other) {
 		if (weapon == null) return;
 		//if (destroyed) return;    // If this causes issues use the destroyFrames system instead
@@ -344,20 +374,23 @@ public class Projectile : Actor {
 			}
 		}
 
-		var gmp = this as GenericMeleeProj;
-		var isSaber = gmp != null && gmp.isZSaber();
+		
+		var isSaber = GenericMeleeProj.isZSaberClang(projId);
 		if (isSaber && owner.character?.isCCImmune() != true) {
 			// Case 1: hitting a clangable projectile.
-			if (ownedByLocalPlayer && otherProj != null && otherProj.owner.alliance != owner.alliance) {
+			if (ownedByLocalPlayer && owner.character != null &&
+				otherProj != null && otherProj.owner.alliance != owner.alliance
+			 ) {
 				if ((otherProj.canClangChar() && charsCanClang(owner.character, otherProj.owner.character)) || otherProj.isShield) {
 					if (!clangedOnce) clangedOnce = true;
 					else return;
 
 					owner.character.changeState(new ZeroClang(-owner.character.xDir), true);
 					owner.character.playSound("m10ding", sendRpc: true);
+					owner.character.addDamageText("Clang!", 3);
 
 					if (other.hitData.hitPoint != null) {
-						new Anim(other.hitData.hitPoint.Value, "zsaber_shot_fade", 1, owner.getNextActorNetId(), true, sendRpc: true);
+						new Anim(other.hitData.hitPoint.Value, "buster4_x3_muzzle", 1, owner.getNextActorNetId(), true, sendRpc: true);
 					}
 
 					destroySelf();
@@ -367,7 +400,7 @@ public class Projectile : Actor {
 
 			// Case 2: hitting a zero that's in swordblock state. Projectile should not run any damage code
 			// This logic could have also lived in "canBeDamaged" but since it's related to the clang code above, it's put here
-			if (other.gameObject is Character chr) {
+			if (owner.character != null && other.gameObject is Character chr) {
 				if (charsCanClang(owner.character, chr)) {
 					return;
 				}
@@ -404,7 +437,9 @@ public class Projectile : Actor {
 
 			var otherRs = other.gameObject as RollingShieldProj;
 			var otherRsc = other.gameObject as RollingShieldProjCharged;
-			if ((otherRs != null || otherRsc != null) && damager.owner.alliance != otherProj.damager.owner.alliance) {
+			if (otherProj != null && (otherRs != null || otherRsc != null) &&
+				damager.owner.alliance != otherProj.damager.owner.alliance
+			) {
 				if (this is ElectricSparkProj || this is ElectricSparkProjCharged || this is PlasmaGunProj || projId == (int)ProjIds.SparkMSpark) {
 					otherRs?.destroySelf(doRpcEvenIfNotOwned: true);
 					otherRsc?.destroySelf(doRpcEvenIfNotOwned: true);
@@ -428,7 +463,7 @@ public class Projectile : Actor {
 			) {
 				if (deltaPos.x != 0 && Math.Sign(deltaPos.x) != otherProj.xDir) {
 					reflect(otherProj.owner, sendRpc: true);
-					playSound("m10ding", sendRpc: true);
+					playSound("sigmaSaberBlock", sendRpc: true);
 				}
 			}
 
@@ -456,7 +491,7 @@ public class Projectile : Actor {
 			}
 
 			var otherBsc = other.gameObject as BubbleSplashProjCharged;
-			if (otherBsc != null && damager.owner.alliance != otherProj.damager.owner.alliance) {
+			if (otherBsc != null && otherProj != null && damager.owner.alliance != otherProj.damager.owner.alliance) {
 				otherBsc.destroySelf(doRpcEvenIfNotOwned: true);
 				if (shouldShieldBlock && !(this is SpinWheelProj) && !(this is SpinWheelProjCharged) && !(this is SpinWheelProjCharged)) {
 					destroySelf(fadeSprite, fadeSound);
@@ -534,11 +569,16 @@ public class Projectile : Actor {
 			}
 
 			bool isMaverickHealProj = projId == (int)ProjIds.MorphMCScrap || projId == (int)ProjIds.MorphMPowder;
-			if (ownedByLocalPlayer && (damagable != damager.owner.character || isMaverickHealProj) && !damager.owner.mavericks.Contains(damagable as Maverick) && damagable.canBeHealed(damager.owner.alliance) && healAmount > 0) {
-				if (Global.serverClient == null || damagableActor.ownedByLocalPlayer) {
+			if (ownedByLocalPlayer &&
+				(damagable != damager.owner.character || isMaverickHealProj) &&
+				damagable is Maverick &&
+				!damager.owner.mavericks.Contains(damagable) &&
+				damagable.canBeHealed(damager.owner.alliance) && healAmount > 0
+			) {
+				if (Global.serverClient == null || damagableActor?.ownedByLocalPlayer == true) {
 					damagable.heal(owner, healAmount, allowStacking: true, drawHealText: true);
 				} else {
-					RPC.heal.sendRpc(owner, damagableActor.netId.Value, healAmount);
+					RPC.heal.sendRpc(owner, damagableActor?.netId ?? ushort.MaxValue, healAmount);
 				}
 				onHitDamagable(damagable);
 			}
@@ -662,7 +702,6 @@ public class Projectile : Actor {
 		rpcCreateHelper(pos, player, netProjId, byteAngle, true, extraData);
 	}
 
-	bool acidFadeOnce;
 	public void acidFadeEffect() {
 		if (!acidFadeOnce) acidFadeOnce = true;
 		else return;
@@ -710,11 +749,6 @@ public class Projectile : Actor {
 		}
 	}
 
-	public float shieldBounceTimeX = 0;
-	public float shieldBounceTimeY = 0;
-	public float shieldBounceMaxTime = 0.25f;
-	public float halfShieldBounceMaxTime { get { return shieldBounceMaxTime / 2f; } }
-
 	public void updateBubbleBounce() {
 		if (shieldBounceTimeY > 0) {
 			shieldBounceTimeY += Global.spf;
@@ -759,12 +793,6 @@ public class Projectile : Actor {
 		}
 	}
 
-	public float wallCrawlSpeed = 250;
-	public bool wallCrawlUpdateAngle;
-
-	int wallCrawlDir = 1;
-	WallPathNode currentNode;
-	bool useLegacyWallCrawl;
 
 	public void setupWallCrawl(Point initialMoveDir) {
 		useLegacyWallCrawl = Global.level.levelData.wallPathNodes.Count == 0;
@@ -785,14 +813,8 @@ public class Projectile : Actor {
 		}
 	}
 
-	public struct WallPathNodeData {
-		public WallPathNode bestStartNode;
-		public Point? bestPointOnLine;
-		public float minDist;
-	}
-
 	public WallPathNodeData getBestWallPath(List<WallPathNode> wallPaths) {
-		WallPathNode bestStartNode = null;
+		WallPathNode? bestStartNode = null;
 		Point? bestPointOnLine = null;
 		float minDist = float.MaxValue;
 		foreach (var node in wallPaths) {
@@ -809,7 +831,7 @@ public class Projectile : Actor {
 		}
 
 		return new WallPathNodeData {
-			bestStartNode = bestStartNode,
+			bestStartNode = bestStartNode!,
 			bestPointOnLine = bestPointOnLine,
 			minDist = minDist
 		};
@@ -846,7 +868,9 @@ public class Projectile : Actor {
 		}
 
 		currentNode = bestWallPathToUse.bestStartNode;
-		changePos(bestWallPathToUse.bestPointOnLine.Value);
+		if (bestWallPathToUse.bestPointOnLine != null) {
+			changePos(bestWallPathToUse.bestPointOnLine.Value);
+		}
 	}
 
 	public void updateModernWallCrawl() {
@@ -867,10 +891,6 @@ public class Projectile : Actor {
 	}
 
 	#region legacy wall crawl code, still needed for maps without wall paths
-	GameObject currentWall;
-	List<Point> dests;
-	int? destIndex;
-	float initWallCooldown;
 
 	public void setupLegacyWallCrawl() {
 		var wallCollideDatas = Global.level.getTriggerList(this, 0, 0, null, typeof(Wall));
@@ -916,10 +936,10 @@ public class Projectile : Actor {
 		Point origin3 = origin.add(dirToDest.rightNormal().times(12));
 		collideDatas.AddRange(Global.level.raycastAll(origin3, origin3.add(dirToDest.times(12)), new List<Type>() { typeof(Wall) }));
 
-		if (collideDatas.Any(cd => currentWall.name != cd.gameObject.name)) {
+		if (collideDatas.Any(cd => currentWall?.name != cd.gameObject.name)) {
 			Global.breakpoint = true;
 			collideDatas = Global.level.checkCollisionsShape(collider.shape, null).FindAll(cd => cd.gameObject is Wall);
-			var bestWallCollideData = getAllowedWallCollideDatas(collideDatas).FirstOrDefault(cd => cd.Item2.gameObject.name != currentWall.name);
+			var bestWallCollideData = getAllowedWallCollideDatas(collideDatas).FirstOrDefault(cd => cd.Item2.gameObject.name != currentWall?.name);
 			// DevConsole.log("Currentwall: " + currentWall.name);
 			Global.breakpoint = false;
 			if (bestWallCollideData != null) {
@@ -956,14 +976,14 @@ public class Projectile : Actor {
 		return results;
 	}
 
-	public void initWall(CollideData wallCollideData, Line? line, bool useCooldown) {
+	public void initWall(CollideData? wallCollideData, Line? line, bool useCooldown) {
 		if (useCooldown) {
 			if (initWallCooldown > 0) return;
 			initWallCooldown = 0.1f;
 		}
 
 		destIndex = null;
-		if (wallCollideData != null && line != null) {
+		if (wallCollideData != null && line != null && wallCollideData.gameObject.collider != null) {
 			currentWall = wallCollideData.gameObject;
 			dests = currentWall.collider.shape.points;
 			Point firstPoint = (xDir == -1) ? line.Value.point1 : line.Value.point2;

@@ -10,6 +10,7 @@ public partial class MegamanX : Character {
 	public int shotgunIceChargeMod = 0;
 	public bool fgMotion;
 	public bool isHyperX;
+	public bool hasUltimateArmor;
 
 	public const int headArmorCost = 2;
 	public const int bodyArmorCost = 3;
@@ -17,7 +18,7 @@ public partial class MegamanX : Character {
 	public const int bootsArmorCost = 2;
 
 	public RollingShieldProjCharged? chargedRollingShieldProj;
-	public List<BubbleSplashProjCharged>? chargedBubbles = new List<BubbleSplashProjCharged>();
+	public List<BubbleSplashProjCharged> chargedBubbles = new List<BubbleSplashProjCharged>();
 	public StrikeChainProj? strikeChainProj;
 	public GravityWellProjCharged? chargedGravityWell;
 	public SpinningBladeProjCharged? chargedSpinningBlade;
@@ -76,6 +77,9 @@ public partial class MegamanX : Character {
 	public float parryCooldown;
 	public float maxParryCooldown = 0.5f;
 
+	public bool stingActive;
+	public bool isHyperChargeActive;
+
 	public MegamanX(
 		Player player, float x, float y, int xDir,
 		bool isVisible, ushort? netId, bool ownedByLocalPlayer,
@@ -92,13 +96,13 @@ public partial class MegamanX : Character {
 		}
 		return isSpecialBuster() &&
 			!Buster.isNormalBuster(player.weapon) &&
-			!isInvisibleBS.getValue() &&
+			!stingActive &&
 			player.armorFlag == 0 &&
 			streamCooldown == 0;
 	}
 
 	public bool canShootSpecialBusterOnBuster() {
-		return isSpecialBuster() && !isInvisibleBS.getValue() && player.armorFlag == 0;
+		return isSpecialBuster() && !stingActive && player.armorFlag == 0;
 	}
 
 	public void refillUnpoBuster() {
@@ -125,6 +129,12 @@ public partial class MegamanX : Character {
 
 		Helpers.decrementTime(ref barrierCooldown);
 
+		if (stingActive) {
+			addRenderEffect(RenderEffectType.Invisible);
+		} else {
+			removeRenderEffect(RenderEffectType.Invisible);
+		}
+
 		if (cStingPaletteTime > 5) {
 			cStingPaletteTime = 0;
 			cStingPaletteIndex++;
@@ -135,7 +145,7 @@ public partial class MegamanX : Character {
 			headbuttAirTime += Global.spf;
 		}
 
-		if (isHyperXBS.getValue()) {
+		if (isHyperX) {
 			if (musicSource == null) {
 				addMusicSource("introStageBreisX4_JX", getCenterPos(), true);
 			}
@@ -148,6 +158,7 @@ public partial class MegamanX : Character {
 			return;
 		}
 		Helpers.decrementTime(ref parryCooldown);
+		isHyperChargeActive = shouldShowHyperBusterCharge();
 
 		if (beeSwarm != null) {
 			beeSwarm.update();
@@ -217,7 +228,7 @@ public partial class MegamanX : Character {
 		if (!isHyperX && canShoot() &&
 			charState is not Die &&
 			charState is not Hurt &&
-			charState?.canShoot() == true
+			charState.canShoot() == true
 		) {
 			if (Global.level.is1v1() && player.weapons.Count == 10) {
 				if (player.weaponSlot != 9) {
@@ -351,7 +362,7 @@ public partial class MegamanX : Character {
 				UPDamageCooldown += Global.spf;
 				if (UPDamageCooldown > unpoDamageMaxCooldown) {
 					UPDamageCooldown = 0;
-					applyDamage(null, null, 1, null);
+					applyDamage(1, player, this, null, null);
 				}
 			}
 		}
@@ -442,7 +453,7 @@ public partial class MegamanX : Character {
 				shootPressed ||
 				(framesSinceLastShootPressed < Global.normalizeFrames(6) &&
 				framesSinceLastShootReleased > Global.normalizeFrames(30)) ||
-				(shootHeld && player.weapon.isStream && chargeTime < charge1Time)
+				(shootHeld && player.weapon.isStream && chargeTime < charge2Time)
 			);
 			if (!fgMotion && offCooldown && shootCondition) {
 				shoot(false);
@@ -761,7 +772,7 @@ public partial class MegamanX : Character {
 		if (chargeLevel >= 3 && player.hasArmArmor(2)) {
 			stockedCharge = true;
 			if (player.weapon is Buster) {
-				shootTime = hasUltimateArmorBS.getValue() ? 0.5f : 0.25f;
+				shootTime = hasUltimateArmor ? 0.5f : 0.25f;
 			} else shootTime = 0.5f;
 			Global.serverClient?.rpc(RPC.playerToggle, (byte)player.id, (int)RPCToggleType.StockCharge);
 		} else if (stockedCharge) {
@@ -844,7 +855,13 @@ public partial class MegamanX : Character {
 
 		if (weapon.soundTime == 0) {
 			if (weapon.shootSounds != null && weapon.shootSounds.Length > 0) {
-				player.character.playSound(weapon.shootSounds[chargeLevel]);
+				int shootSoundIndex = chargeLevel;
+				if (shootSoundIndex >= weapon.shootSounds.Length) {
+					shootSoundIndex = weapon.shootSounds.Length - 1;
+				}
+				if (weapon.shootSounds[chargeLevel] != "") {
+					player.character.playSound(weapon.shootSounds[chargeLevel]);
+				}
 			}
 			if (weapon is FireWave) {
 				weapon.soundTime = 0.25f;
@@ -854,7 +871,7 @@ public partial class MegamanX : Character {
 		// Only deduct ammo if owned by local player
 		if (ownedByLocalPlayer) {
 			float ammoUsage;
-			if (player.character.isInvisibleBS.getValue() && chargeLevel < 3) {
+			if ((player.character as MegamanX)?.stingActive == true && chargeLevel < 3) {
 				ammoUsage = 4;
 			} else if (weapon is FireWave) {
 				if (chargeLevel < 3) {
@@ -930,9 +947,7 @@ public partial class MegamanX : Character {
 	}
 
 	public bool isHyperXOrReviving() {
-		if (sprite.name.Contains("revive")) return true;
-		if (isHyperXBS.getValue()) return true;
-		return false;
+		return (isHyperX || sprite.name.EndsWith("revive"));
 	}
 
 	// BARRIER SECTION
@@ -1018,55 +1033,56 @@ public partial class MegamanX : Character {
 	}
 
 	public bool checkMaverickWeakness(ProjIds projId) {
-		if (player.weapon is Torpedo) {
-			return projId == ProjIds.ArmoredARoll;
-		} else if (player.weapon is Sting) {
-			return projId == ProjIds.BoomerangKBoomerang;
-		} else if (player.weapon is RollingShield) {
-			return projId == ProjIds.SparkMSpark;
-		} else if (player.weapon is FireWave) {
-			return projId == ProjIds.StormETornado;
-		} else if (player.weapon is Tornado) {
-			return projId == ProjIds.StingCSting;
-		} else if (player.weapon is ElectricSpark) {
-			return projId == ProjIds.ChillPIcePenguin || projId == ProjIds.ChillPIceShot;
-		} else if (player.weapon is Boomerang) {
-			return projId == ProjIds.LaunchOMissle || projId == ProjIds.LaunchOTorpedo;
-		} else if (player.weapon is ShotgunIce) {
-			return projId == ProjIds.FlameMFireball || projId == ProjIds.FlameMOilFire;
-		} else if (player.weapon is CrystalHunter) {
-			return projId == ProjIds.MagnaCMagnetMine;
-		} else if (player.weapon is BubbleSplash) {
-			return projId == ProjIds.WheelGSpinWheel;
-		} else if (player.weapon is SilkShot) {
-			return projId == ProjIds.FStagFireball || projId == ProjIds.FStagDash ||
-				projId == ProjIds.FStagDashCharge || projId == ProjIds.FStagDashTrail;
-		} else if (player.weapon is SpinWheel) {
-			return projId == ProjIds.WSpongeChain || projId == ProjIds.WSpongeUpChain;
-		} else if (player.weapon is SonicSlicer) {
-			return projId == ProjIds.CSnailCrystalHunter;
-		} else if (player.weapon is StrikeChain) {
-			return projId == ProjIds.OverdriveOSonicSlicer || projId == ProjIds.OverdriveOSonicSlicerUp;
-		} else if (player.weapon is MagnetMine) {
-			return projId == ProjIds.MorphMCScrap || projId == ProjIds.MorphMBeam;
-		} else if (player.weapon is SpeedBurner) {
-			return projId == ProjIds.BCrabBubbleSplash;
-		} else if (player.weapon is AcidBurst) {
-			return projId == ProjIds.BBuffaloIceProj || projId == ProjIds.BBuffaloIceProjGround;
-		} else if (player.weapon is ParasiticBomb) {
-			return projId == ProjIds.GBeetleGravityWell || projId == ProjIds.GBeetleBall;
-		} else if (player.weapon is TriadThunder) {
-			return projId == ProjIds.TunnelRTornadoFang || projId == ProjIds.TunnelRTornadoFang2 || projId == ProjIds.TunnelRTornadoFangDiag;
-		} else if (player.weapon is SpinningBlade) {
-			return projId == ProjIds.VoltCBall || projId == ProjIds.VoltCTriadThunder || projId == ProjIds.VoltCUpBeam || projId == ProjIds.VoltCUpBeam2;
-		} else if (player.weapon is RaySplasher) {
-			return projId == ProjIds.CrushCArmProj;
-		} else if (player.weapon is GravityWell) {
-			return projId == ProjIds.NeonTRaySplasher;
-		} else if (player.weapon is FrostShield) {
-			return projId == ProjIds.BHornetBee || projId == ProjIds.BHornetHomingBee;
-		} else if (player.weapon is TunnelFang) {
-			return projId == ProjIds.TSeahorseAcid1 || projId == ProjIds.TSeahorseAcid2;
+		switch (player.weapon) {
+			case Torpedo:
+				return projId == ProjIds.ArmoredARoll;
+			case Sting:
+				return projId == ProjIds.BoomerangKBoomerang;
+			case RollingShield:
+				return projId == ProjIds.SparkMSpark;
+			case FireWave:
+				return projId == ProjIds.StormETornado;
+			case Tornado:
+				return projId == ProjIds.StingCSting;
+			case ElectricSpark:
+				return projId == ProjIds.ChillPIcePenguin || projId == ProjIds.ChillPIceShot;
+			case Boomerang:
+				return projId == ProjIds.LaunchOMissle || projId == ProjIds.LaunchOTorpedo;
+			case ShotgunIce:
+				return projId == ProjIds.FlameMFireball || projId == ProjIds.FlameMOilFire;
+			case CrystalHunter:
+				return projId == ProjIds.MagnaCMagnetMine;
+			case BubbleSplash:
+				return projId == ProjIds.WheelGSpinWheel;
+			case SilkShot:
+				return projId == ProjIds.FStagFireball || projId == ProjIds.FStagDash ||
+					   projId == ProjIds.FStagDashCharge || projId == ProjIds.FStagDashTrail;
+			case SpinWheel:
+				return projId == ProjIds.WSpongeChain || projId == ProjIds.WSpongeUpChain;
+			case SonicSlicer:
+				return projId == ProjIds.CSnailCrystalHunter;
+			case StrikeChain:
+				return projId == ProjIds.OverdriveOSonicSlicer || projId == ProjIds.OverdriveOSonicSlicerUp;
+			case MagnetMine:
+				return projId == ProjIds.MorphMCScrap || projId == ProjIds.MorphMBeam;
+			case SpeedBurner:
+				return projId == ProjIds.BCrabBubbleSplash;
+			case AcidBurst:
+				return projId == ProjIds.BBuffaloIceProj || projId == ProjIds.BBuffaloIceProjGround;
+			case ParasiticBomb:
+				return projId == ProjIds.GBeetleGravityWell || projId == ProjIds.GBeetleBall;
+			case TriadThunder:
+				return projId == ProjIds.TunnelRTornadoFang || projId == ProjIds.TunnelRTornadoFang2 || projId == ProjIds.TunnelRTornadoFangDiag;
+			case SpinningBlade:
+				return projId == ProjIds.VoltCBall || projId == ProjIds.VoltCTriadThunder || projId == ProjIds.VoltCUpBeam || projId == ProjIds.VoltCUpBeam2;
+			case RaySplasher:
+				return projId == ProjIds.CrushCArmProj;
+			case GravityWell:
+				return projId == ProjIds.NeonTRaySplasher;
+			case FrostShield:
+				return projId == ProjIds.BHornetBee || projId == ProjIds.BHornetHomingBee;
+			case TunnelFang:
+				return projId == ProjIds.TSeahorseAcid1 || projId == ProjIds.TSeahorseAcid2;
 		}
 
 		return false;
@@ -1117,7 +1133,7 @@ public partial class MegamanX : Character {
 		if (beeSwarm != null) return false;
 		Weapon weapon = player.weapon;
 		if (weapon is RollingShield && chargedRollingShieldProj != null) return false;
-		if (isInvisibleBS.getValue()) return false;
+		if (stingActive) return false;
 		if (flag != null) return false;
 		if (player.weapons.Count == 0) return false;
 		if (weapon is AbsorbWeapon) return false;
@@ -1165,18 +1181,15 @@ public partial class MegamanX : Character {
 		return jumpModifier * base.getJumpModifier();
 	} */
 
-	public override void changeState(CharState newState, bool forceChange = false) {
-		if (!forceChange && charState != null && newState != null &&
-			charState.GetType() == newState.GetType() ||
-			 !forceChange && changedStateInFrame
-		) {
-			return;
+	public override bool changeState(CharState newState, bool forceChange = false) {
+		bool hasChanged = base.changeState(newState, forceChange);
+		if (!hasChanged) {
+			return false;
 		}
-		base.changeState(newState, forceChange);
-
 		if (hasBusterProj() && string.IsNullOrEmpty(newState.shootSprite) && newState is not Hurt) {
 			destroyBusterProjs();
 		}
+		return true;
 	}
 
 	public void drawHyperCharge(float x, float y) {
@@ -1223,14 +1236,14 @@ public partial class MegamanX : Character {
 				shootPos.x + x + (3 * xDir), shootPos.y + y, 1, 1, null, 1, 1, 1, zIndex
 			);
 		}
-		if (isHyperChargeActiveBS.getValue() && visible) {
+		if (isHyperChargeActive && visible) {
 			drawHyperCharge(x, y);
 		}
 		base.render(x, y);
 	}
 
 	public override void destroySelf(
-		string spriteName = null, string fadeSound = null,
+		string spriteName = "", string fadeSound = "",
 		bool disableRpc = false, bool doRpcEvenIfNotOwned = false,
 		bool favorDefenderProjDestroy = false
 	) {
@@ -1258,9 +1271,8 @@ public partial class MegamanX : Character {
 
 
 	public bool canHeadbutt() {
-		if (!player.isX) return false;
 		if (!player.hasHelmetArmor(1)) return false;
-		if (isInvisibleBS.getValue()) return false;
+		if (stingActive) return false;
 		if (isInvulnerableAttack()) return false;
 		if (headbuttAirTime < 0.04f) return false;
 		if (sprite.name.Contains("jump") && deltaPos.y < -100 * Global.spf) return true;
@@ -1286,11 +1298,11 @@ public partial class MegamanX : Character {
 	}
 
 	public bool canUseFgMove() {
-		return !isInvulnerableAttack() && chargedRollingShieldProj == null && !isInvisibleBS.getValue() && canAffordFgMove() && hadoukenCooldownTime == 0 && player.weapon is Buster && player.fgMoveAmmo >= 32;
+		return !isInvulnerableAttack() && chargedRollingShieldProj == null && !stingActive && canAffordFgMove() && hadoukenCooldownTime == 0 && player.weapon is Buster && player.fgMoveAmmo >= 32;
 	}
 
 	public bool shouldDrawFgCooldown() {
-		return !isInvulnerableAttack() && chargedRollingShieldProj == null && !isInvisibleBS.getValue() && canAffordFgMove() && hadoukenCooldownTime == 0;
+		return !isInvulnerableAttack() && chargedRollingShieldProj == null && !stingActive && canAffordFgMove() && hadoukenCooldownTime == 0;
 	}
 
 	public override Dictionary<int, Func<Projectile>> getGlobalProjs() {
@@ -1298,7 +1310,7 @@ public partial class MegamanX : Character {
 
 		if (canHeadbutt() && getHeadPos() != null) {
 			retProjs[(int)ProjIds.Headbutt] = () => {
-				Point centerPoint = getHeadPos().Value.addxy(0, -6);
+				Point centerPoint = getHeadPos()!.Value.addxy(0, -6);
 				float damage = 2;
 				int flinch = Global.halfFlinch;
 				if (sprite.name.Contains("up_dash")) {
@@ -1376,7 +1388,7 @@ public partial class MegamanX : Character {
 		if (player.hasGoldenArmor()) {
 			index = 25;
 		}
-		if (hasUltimateArmorBS.getValue()) {
+		if (hasUltimateArmor) {
 			index = 0;
 		}
 		palette = player.xPaletteShader;
@@ -1449,6 +1461,81 @@ public partial class MegamanX : Character {
 	public override void increaseCharge() {
 		float factor = 1;
 		if (player.hasArmArmor(1)) { factor = 1.5f; }
-		chargeTime += Global.spf * factor;
+		chargeTime += Global.speedMul * factor;
+	}
+
+
+	public override bool canBeDamaged(int damagerAlliance, int? damagerPlayerId, int? projId) {
+		bool damaged = base.canBeDamaged(damagerAlliance, damagerPlayerId, projId);
+
+		// Bommerang can go thru invisibility check
+		if (player.alliance != damagerAlliance && projId != null && Damager.isBoomerang(projId)) {
+			return damaged;
+		}
+		if (stingActive) {
+			return false;
+		}
+		return damaged;
+	}
+
+	public override bool isStealthy(int alliance) {
+		return (player.alliance != alliance && stingActive);
+	}
+
+	public override bool isCCImmuneHyperMode() {
+		return isHyperX;
+	}
+
+	public bool shouldShowHyperBusterCharge() {
+		return flag != null && player.weapon is HyperBuster hb && hb.canShootIncludeCooldown(player);
+	}
+
+	public override bool isInvulnerable(bool ignoreRideArmorHide = false, bool factorHyperMode = false) {
+		bool invul = base.isInvulnerable(ignoreRideArmorHide, factorHyperMode);
+		if (stingActive) {
+			return true;
+		}
+		return invul;
+	}
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = base.getCustomActorNetData();
+
+		int weaponIndex = player.weapon.index;
+		if (weaponIndex == (int)WeaponIds.HyperBuster) {
+			weaponIndex = player.weapons[player.hyperChargeSlot].index;
+		}
+		customData.Add((byte)weaponIndex);
+		customData.Add((byte)MathF.Ceiling(player.weapon?.ammo ?? 0));
+
+		customData.AddRange(BitConverter.GetBytes(player.armorFlag));
+
+		customData.Add(Helpers.boolArrayToByte([
+			stingActive,
+			isHyperX,
+			isHyperChargeActive,
+			hasUltimateArmor
+		]));
+
+		return customData;
+	}
+
+	public override void updateCustomActorNetData(byte[] data) {
+		// Update base arguments.
+		base.updateCustomActorNetData(data);
+		data = data[data[0]..];
+
+		// Per-player data.
+		player.changeWeaponFromWi(data[0]);
+		if (player.weapon != null) {
+			player.weapon.ammo = data[1];
+		}
+		player.armorFlag = BitConverter.ToUInt16(data[2..4]);
+
+		bool[] boolData = Helpers.byteToBoolArray(data[4]);
+		stingActive = boolData[0];
+		isHyperX = boolData[1];
+		isHyperChargeActive = boolData[2];
+		hasUltimateArmor = boolData[3];
 	}
 }

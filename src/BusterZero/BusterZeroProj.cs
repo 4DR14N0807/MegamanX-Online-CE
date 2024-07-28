@@ -82,7 +82,7 @@ public class DZBuster3Proj : Projectile {
 		fadeSprite = "buster3_fade";
 		reflectable = true;
 		maxTime = 0.5f;
-		projId = (int)ProjIds.DZBuster4;
+		projId = (int)ProjIds.DZBuster3;
 		if (rpc) {
 			rpcCreate(pos, player, netId, xDir);
 		}
@@ -115,7 +115,7 @@ public class DZHadangekiProj : Projectile {
 		Point pos, int xDir, bool isBZ, Player player, ushort? netId, bool rpc = false
 	) : base(
 		ZeroBuster.netWeapon, pos, xDir,
-		350, 3, player, "zsaber_shot", Global.halfFlinch, 0,
+		350, 3, player, "zsaber_shot", 0, 0,
 		netId, player.ownedByLocalPlayer
 	) {
 		fadeOnAutoDestroy = true;

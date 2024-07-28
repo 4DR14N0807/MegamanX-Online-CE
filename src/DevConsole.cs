@@ -112,6 +112,11 @@ public class DevConsole {
 		Global.showHitboxes = !Global.showHitboxes;
 	}
 
+	public static void showOrHideGrid(string[] args) {
+		Global.showGridHitboxes = !Global.showGridHitboxes;
+	}
+
+
 	public static void becomeMoth() {
 		var mmc = Global.level?.mainPlayer?.currentMaverick as MorphMothCocoon;
 		if (mmc != null) {
@@ -138,7 +143,9 @@ public class DevConsole {
 	public static void aiRevive() {
 		if (Global.debug) {
 			Global.shouldAiAutoRevive = true;
-			Global.level.otherPlayer.character?.applyDamage(null, null, Damager.envKillDamage, null);
+			Global.level.otherPlayer.character?.applyDamage(
+				Damager.envKillDamage, Global.level.otherPlayer, Global.level.otherPlayer.character, null, null
+			);
 		}
 	}
 
@@ -203,6 +210,7 @@ public class DevConsole {
 			new Command("aispec", (args) => aiDebug(true)),
             // Offline only
             new Command("hitbox", (args) => showOrHideHitboxes(args)),
+            new Command("grid", (args) => showOrHideGrid(args)),
 			new Command("dumpnetids", (args) => Helpers.WriteToFile("netIdDump.txt", Global.level.getNetIdDump())),
 			new Command("dumpkillfeed", (args) => Helpers.WriteToFile("killFeedDump.txt", string.Join(Environment.NewLine, Global.level.gameMode.killFeedHistory))),
 			new Command("invuln", (args) => Global.level.mainPlayer.character.invulnTime = 60),

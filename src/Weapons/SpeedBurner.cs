@@ -58,8 +58,6 @@ public class SpeedBurnerProj : Projectile {
 		Helpers.decrementTime(ref groundSpawnTime);
 		Helpers.decrementTime(ref airSpawnTime);
 
-		var hit = Global.level.raycast(pos, pos.addxy(0, 20), new List<Type>() { typeof(Wall) });
-		
 		if (airSpawnTime == 0) {
 			var anim = new Anim(
 				pos.addxy(Helpers.randomRange(-10, 10),
@@ -72,10 +70,14 @@ public class SpeedBurnerProj : Projectile {
 		if (!ownedByLocalPlayer) {
 			return;
 		}
-		if (hit?.gameObject is Wall && groundSpawnTime == 0) {
-			Point spawnPos = pos.addxy(-(groundSpawns * 15) * xDir, 0);
-			spawnPos.y = hit.hitData.hitPoint?.y ?? pos.y;
-			new SpeedBurnerProjGround(weapon, spawnPos, xDir, damager.owner, damager.owner.getNextActorNetId(), rpc: true);
+		CollideData? hit = Global.level.raycast(pos, pos.addxy(0, 18), [typeof(Wall)]);
+
+		if (hit != null && groundSpawnTime == 0) {
+			Point spawnPos = pos.addxy((groundSpawns * -15 + 10) * xDir, 0);
+			spawnPos.y = hit.hitData.hitPoint?.y - 1 ?? pos.y;
+			new SpeedBurnerProjGround(
+				weapon, spawnPos, xDir, damager.owner, damager.owner.getNextActorNetId(), rpc: true
+			);
 			groundSpawns++;
 
 			groundSpawnTime = 0.075f;
@@ -151,7 +153,7 @@ public class SpeedBurnerCharState : CharState {
 
 		CollideData collideData = Global.level.checkCollisionActor(character, character.xDir, 0);
 		if (collideData != null && collideData.isSideWallHit() && character.ownedByLocalPlayer) {
-			character.applyDamage(player, (int)WeaponIds.SpeedBurner, 2, (int)ProjIds.SpeedBurnerRecoil);
+			character.applyDamage(2, player, character, (int)WeaponIds.SpeedBurner, (int)ProjIds.SpeedBurnerRecoil);
 			//character.changeState(new Hurt(-character.xDir, Global.defFlinch, 0), true);
 			character.changeState(new Idle(), true);
 			character.playSound("hurt", sendRpc: true);

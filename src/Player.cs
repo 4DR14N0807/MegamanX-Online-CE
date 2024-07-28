@@ -14,10 +14,12 @@ public partial class Player {
 	public bool ownedByLocalPlayer;
 	public int? awakenedCurrencyEnd;
 	public float fgMoveAmmo = 32;
+	public bool isDefenderFavoredNonOwner;
+
 	public bool isDefenderFavored {
 		get {
 			if (character != null && !character.ownedByLocalPlayer) {
-				return character.isDefenderFavoredBS.getValue();
+				return isDefenderFavoredNonOwner;
 			}
 			if (Global.level?.server == null) {
 				return false;
@@ -111,28 +113,13 @@ public partial class Player {
 		return overrideLoadoutWeight.Value;
 	}
 
-	public int getVileWeightActive() {
-		int weight =
-			vileCannonWeapon.vileWeight +
-			vileVulcanWeapon.vileWeight +
-			vileMissileWeapon.vileWeight +
-			vileRocketPunchWeapon.vileWeight +
-			vileNapalmWeapon.vileWeight +
-			vileBallWeapon.vileWeight +
-			vileCutterWeapon.vileWeight +
-			vileFlamethrowerWeapon.vileWeight +
-			vileLaserWeapon.vileWeight;
-
-		return weight;
-	}
-
 	public Point? lastDeathPos;
 	public bool lastDeathWasVileMK2;
 	public bool lastDeathWasVileMK5;
 	public bool lastDeathWasSigmaHyper;
 	public bool lastDeathWasXHyper;
 	public const int zeroHyperCost = 10;
-	public const int zBusterZeroHyperCost = 10;
+	public const int zBusterZeroHyperCost = 8;
 	public const int AxlHyperCost = 10;
 	public const int reviveVileCost = 5;
 	public const int reviveSigmaCost = 10;
@@ -294,7 +281,7 @@ public partial class Player {
 
 	public int selectedRAIndex = Global.quickStartMechNum ?? 0;
 	public bool isSelectingRA() {
-		if (weapon is MechMenuWeapon mmw && mmw.isMenuOpened) {
+		if (character is Vile vile && vile.rideMenuWeapon.isMenuOpened) {
 			return true;
 		}
 		return false;
@@ -331,6 +318,7 @@ public partial class Player {
 	public bool readyTextOver = false;
 	public ServerPlayer serverPlayer;
 	public LoadoutData loadout;
+	public bool loadoutSet;
 	public LoadoutData previousLoadout;
 	public LoadoutData oldAxlLoadout;
 	public AxlLoadout axlLoadout { get { return loadout.axlLoadout; } }
@@ -341,8 +329,6 @@ public partial class Player {
 	// Note: Every time you add an armor, add an "old" version and update DNA Core code appropriately
 	public ushort armorFlag;
 	public ushort oldArmorFlag;
-	public bool ultimateArmor;
-	public bool oldUltimateArmor;
 	public bool frozenCastle;
 	public bool oldFrozenCastle;
 	public bool speedDevil;
@@ -437,6 +423,31 @@ public partial class Player {
 	public float sigmaMaxAmmo = 32;
 	public int? maverick1v1;
 	public bool maverick1v1Spawned;
+
+	public float possessedTime;
+	public const float maxPossessedTime = 12;
+	public Player possesser;
+
+	public List<MagnetMineProj> magnetMines = new List<MagnetMineProj>();
+	public List<RaySplasherTurret> turrets = new List<RaySplasherTurret>();
+	public List<GrenadeProj> grenades = new List<GrenadeProj>();
+	public List<ChillPIceStatueProj> iceStatues = new List<ChillPIceStatueProj>();
+	public List<WSpongeSpike> seeds = new List<WSpongeSpike>();
+	public List<Actor> mechaniloids = new List<Actor>();
+
+	ExplodeDieEffect explodeDieEffect;
+	public Character limboChar;
+	public bool suicided;
+
+	ushort savedArmorFlag;
+	public bool[] headArmorsPurchased = new bool[] { false, false, false };
+	public bool[] bodyArmorsPurchased = new bool[] { false, false, false };
+	public bool[] armArmorsPurchased = new bool[] { false, false, false };
+	public bool[] bootsArmorsPurchased = new bool[] { false, false, false };
+
+	public float lastMashAmount;
+	public int lastMashAmountSetFrame;
+
 	public bool isNon1v1MaverickSigma() {
 		return isSigma && maverick1v1 == null;
 	}
@@ -580,8 +591,12 @@ public partial class Player {
 
 		if (ownedByLocalPlayer && !isAI) {
 			loadout = LoadoutData.createFromOptions(id);
+			loadoutSet = true;
 		} else {
 			loadout = LoadoutData.createRandom(id);
+			if (ownedByLocalPlayer) {
+				loadoutSet = true;
+			}
 		}
 
 		configureWeapons();
@@ -590,36 +605,41 @@ public partial class Player {
 	}
 
 	public int getHeartTankModifier() {
-		return Helpers.clamp(Global.level.server?.customMatchSettings?.heartTankHp ?? 1, 1, 2);
+		return Global.level.server?.customMatchSettings?.heartTankHp ?? 1;
 	}
 
 	public float getMaverickMaxHp() {
 		if (!Global.level.is1v1() && isTagTeam()) {
-			//return 16 + (heartTanks * getHeartTankModifier());
-			return MathF.Ceiling(24 * getHealthModifier());
+			return getModifiedHealth(20) + (heartTanks * getHeartTankModifier());
 		}
-
-		return MathF.Ceiling(24 * getHealthModifier());
+		return MathF.Ceiling(getModifiedHealth(24));
 	}
 
 	public bool hasAllItems() {
 		return subtanks.Count >= 4 && heartTanks >= 8;
 	}
 
-	public float getHealthModifier() {
-		var level = Global.level;
-		float modifier = 1;
-		if (level.is1v1()) {
-			if (Global.level.server.playTo == 1) modifier = 2;
-			if (Global.level.server.playTo == 2) modifier = 1.5f;
+	public static float getBaseHealth() {
+		if (Global.level.server.customMatchSettings != null) {
+			return Global.level.server.customMatchSettings.healthModifier;
 		}
-		if (level.server.customMatchSettings != null) {
-			modifier = (float)(level.server.customMatchSettings.healthModifier * 0.1m);
-			//if (level.gameMode.isTeamMode && alliance == GameMode.redAlliance) {
-			//	modifier = level.server.customMatchSettings.redHealthModifier;
-			//}
+		return 16;
+	}
+
+	public static float getModifiedHealth(float health) {
+		if (Global.level.server.customMatchSettings != null) {
+			float retHp = getBaseHealth();
+			float extraHP = health - 16;
+
+			float hpMulitiplier = MathF.Ceiling(getBaseHealth() / 16);
+			retHp += MathF.Ceiling(extraHP * hpMulitiplier);
+
+			if (retHp < 1) {
+				retHp = 1;
+			}
+			return retHp;
 		}
-		return modifier;
+		return health;
 	}
 
 	public float getDamageModifier() {
@@ -635,15 +655,15 @@ public partial class Player {
 	public float getMaxHealth() {
 		// 1v1 is the only mode without possible heart tanks/sub tanks
 		if (Global.level.is1v1()) {
-			return MathF.Ceiling(28 * getHealthModifier());
+			return getModifiedHealth(28);
 		}
 		int bonus = 0;
-		if (isSigma && isPuppeteer()) bonus = 4;
-		float hpModifier = getHealthModifier();
-		if (hpModifier < 1) {
-			return MathF.Ceiling((20 + bonus) * hpModifier) + heartTanks * getHeartTankModifier();
+		if (isSigma && isPuppeteer()) {
+			bonus = 4;
 		}
-		return MathF.Ceiling((20 + bonus + (heartTanks * getHeartTankModifier())) * hpModifier);
+		return MathF.Ceiling(
+			getModifiedHealth(16 + bonus) + (heartTanks * getHeartTankModifier())
+		);
 	}
 
 	public void creditHealing(float healAmount) {
@@ -684,21 +704,17 @@ public partial class Player {
 
 	// The first net id this player could possibly own. This includes the "reserved" ones
 	public ushort getStartNetId() {
-		return (ushort)(Level.maxReservedNetId + (ushort)(id * netIdsPerPlayer));
+		return (ushort)(Level.firstNormalNetId + (ushort)(id * netIdsPerPlayer));
 	}
 
 	// The character net id is always the first net id of the player
 	public ushort getCharActorNetId() {
-		if (isLocalAI) {
-			return Global.level.mainPlayer.getStartNetId();
-		}
-
 		return getStartNetId();
 	}
 
 	public static int? getPlayerIdFromCharNetId(ushort charNetId) {
 		int netIdInt = charNetId;
-		int maxIdInt = Level.maxReservedNetId;
+		int maxIdInt = Level.firstNormalNetId;
 		int diff = (netIdInt - maxIdInt);
 		if (diff < 0) return null;
 		if (diff % netIdsPerPlayer != 0) {
@@ -716,8 +732,8 @@ public partial class Player {
 	}
 
 	public ushort getNextATransNetId() {
-		if (isLocalAI) {
-			return Global.level.mainPlayer.getStartNetId();
+		if (curATransNetId < getStartNetId() + 1) {
+			curATransNetId = (ushort)(getStartNetId() + 1);
 		}
 		var retId = curATransNetId;
 		curATransNetId++;
@@ -729,18 +745,26 @@ public partial class Player {
 
 	// Usually, only the main player is allowed to get the next actor net id. The exception is if you call setNextActorNetId() first. The assert checks for that in debug.
 	public ushort getNextActorNetId(bool allowNonMainPlayer = false) {
-		if (isLocalAI) {
-			return Global.level.mainPlayer.getStartNetId();
-		}
-
-		var retId = curMaxNetId;
+		// Increase by 1 normall.
+		int retId = curMaxNetId;
 		curMaxNetId++;
-
+		// Use this to avoid duplicates.
+		if (ownedByLocalPlayer) {
+			while (
+				Global.level.actorsById.GetValueOrDefault(curMaxNetId) != null &&
+				curMaxNetId <= getStartNetId() + netIdsPerPlayer
+			) {
+				// Overwrite if destroyed.
+				if (Global.level.actorsById[curMaxNetId].destroyed) {
+					break;
+				}
+				curMaxNetId++;
+			}
+		}
 		if (curMaxNetId >= getStartNetId() + netIdsPerPlayer) {
 			curMaxNetId = getFirstAvailableNetId();
 		}
-
-		return retId;
+		return (ushort)retId;
 	}
 
 	public void setNextActorNetId(ushort curMaxNetId) {
@@ -872,8 +896,12 @@ public partial class Player {
 				}
 			}
 
-			if (canReviveSigma(out var spawnPoint) && (input.isPressed(Control.Special1, this) || Global.level.isHyper1v1() || Global.shouldAiAutoRevive)) {
-				reviveSigma(spawnPoint);
+			if (canReviveSigma(out var spawnPoint) &&
+				(input.isPressed(Control.Special2, this) ||
+				Global.level.isHyper1v1() ||
+				Global.shouldAiAutoRevive)
+			) {
+				reviveSigma(2, spawnPoint);
 			}
 		} else if (isX) {
 			if (canReviveX() && (input.isPressed(Control.Special2, this) || Global.shouldAiAutoRevive)) {
@@ -1021,7 +1049,12 @@ public partial class Player {
 					false, charNetId, ownedByLocalPlayer
 				);
 			} else if (charNum == (int)CharIds.Sigma) {
-				if (isSigma3()) {
+				if (!ownedByLocalPlayer && !loadoutSet) {
+					character = new BaseSigma(
+						this, pos.x, pos.y, xDir,
+						false, charNetId, ownedByLocalPlayer
+					);
+				} else if (isSigma3()) {
 					character = new Doppma(
 						this, pos.x, pos.y, xDir,
 						false, charNetId, ownedByLocalPlayer
@@ -1056,16 +1089,17 @@ public partial class Player {
 				throw new Exception("Error: Non-valid char ID: " + charNum);
 			}
 			// Hyper mode overrides (POST)
-			if (Global.level.isHyper1v1() && ownedByLocalPlayer) {
+			if (Global.level.isHyperMatch() && ownedByLocalPlayer) {
 				if (isX) {
 					setUltimateArmor(true);
 				}
 				if (character is Zero zero) {
 					if (loadout.zeroLoadout.hyperMode == 0) {
-						zero.blackZeroTime = 100000;
+						zero.isBlack = true;
+					} else if (loadout.zeroLoadout.hyperMode == 1) {
+						zero.awakenedPhase = 1;
 					} else {
-						zero.awakenedZeroTime = 0;
-						currency = 9999;
+						zero.isViral = true;
 					}
 				}
 				if (character is Axl axl) {
@@ -1098,9 +1132,6 @@ public partial class Player {
 		warpedIn = true;
 	}
 
-	public float possessedTime;
-	public const float maxPossessedTime = 12;
-	public Player possesser;
 	public void startPossess(Player possesser, bool sendRpc = false) {
 		possessedTime = maxPossessedTime;
 		this.possesser = possesser;
@@ -1274,15 +1305,16 @@ public partial class Player {
 		// Save old flags.
 		oldArmorFlag = armorFlag;
 		oldSpeedDevil = speedDevil;
-		oldFrozenCastle = frozenCastle;
-		oldUltimateArmor = ultimateArmor;
+		oldFrozenCastle = frozenCastle;;
 
 		// Armor flags for X.
 		if (data.charNum == (int)CharIds.X) {
 			armorFlag = BitConverter.ToUInt16(
 				new byte[] { data.extraData[0], data.extraData[1] }
 			);
-			oldUltimateArmor = (data.extraData[2] == 1);
+			if (retChar is MegamanX retX) {
+				retX.hasUltimateArmor = (data.extraData[2] == 1);
+			}
 		}
 		// Store old weapons.
 		oldWeapons = weapons;
@@ -1313,12 +1345,10 @@ public partial class Player {
 		oldArmorFlag = armorFlag;
 		oldFrozenCastle = frozenCastle;
 		oldSpeedDevil = speedDevil;
-		oldUltimateArmor = ultimateArmor;
 
 		armorFlag = dnaCore.armorFlag;
 		frozenCastle = dnaCore.frozenCastle;
 		speedDevil = dnaCore.speedDevil;
-		ultimateArmor = dnaCore.ultimateArmor;
 
 		bool isVileMK2 = charNum == 2 && dnaCore.hyperMode == DNACoreHyperMode.VileMK2;
 		bool isVileMK5 = charNum == 2 && dnaCore.hyperMode == DNACoreHyperMode.VileMK5;
@@ -1331,7 +1361,7 @@ public partial class Player {
 				extraData = new byte[] {
 					armorBytes[0],
 					armorBytes[1],
-					ultimateArmor ? (byte)1 : (byte)0
+					dnaCore.ultimateArmor ? (byte)1 : (byte)0
 				};
 			} else if (dnaCore.charNum == (int)CharIds.Vile) {
 				extraData = new byte[1];
@@ -1353,12 +1383,7 @@ public partial class Player {
 			);
 			Global.serverClient?.rpc(RPC.axlDisguise, json);
 		}
-		float hpModifier = getHealthModifier();
-		if (hpModifier < 1) {
-			maxHealth = dnaCore.maxHealth + heartTanks * getHeartTankModifier();
-		} else {
-			maxHealth = dnaCore.maxHealth + MathF.Ceiling(heartTanks * getHeartTankModifier() * getHealthModifier());
-		}
+		maxHealth = dnaCore.maxHealth + MathF.Ceiling(heartTanks * getHeartTankModifier());
 
 		oldAxlLoadout = loadout;
 		loadout = dnaCore.loadout;
@@ -1491,11 +1516,14 @@ public partial class Player {
 			zero.gigaAttack.ammo = dnaCore.rakuhouhaAmmo;
 
 			if (dnaCore.hyperMode == DNACoreHyperMode.BlackZero) {
-				zero.blackZeroTime = Zero.maxBlackZeroTime;
+				zero.isBlack = true;
+				zero.hyperMode = 0;
 			} else if (dnaCore.hyperMode == DNACoreHyperMode.AwakenedZero) {
 				zero.awakenedPhase = 1;
+				zero.hyperMode = 1;
 			} else if (dnaCore.hyperMode == DNACoreHyperMode.NightmareZero) {
 				zero.isViral = true;
+				zero.hyperMode = 2;
 			}
 		} else if (charNum == (int)CharIds.Axl && character is Axl axl) {
 			if (dnaCore.hyperMode == DNACoreHyperMode.WhiteAxl) {
@@ -1545,7 +1573,6 @@ public partial class Player {
 		armorFlag = oldArmorFlag;
 		speedDevil = oldSpeedDevil;
 		frozenCastle = oldFrozenCastle;
-		ultimateArmor = oldUltimateArmor;
 
 		lastDNACore = null;
 		lastDNACoreIndex = 4;
@@ -1594,7 +1621,6 @@ public partial class Player {
 		armorFlag = oldArmorFlag;
 		speedDevil = oldSpeedDevil;
 		frozenCastle = oldFrozenCastle;
-		ultimateArmor = oldUltimateArmor;
 
 		lastDNACore = null;
 		lastDNACoreIndex = 4;
@@ -1654,21 +1680,18 @@ public partial class Player {
 		}
 	}
 
-	public List<MagnetMineProj> magnetMines = new List<MagnetMineProj>();
 	public void removeOwnedMines() {
 		for (int i = magnetMines.Count - 1; i >= 0; i--) {
 			magnetMines[i].destroySelf();
 		}
 	}
 
-	public List<RaySplasherTurret> turrets = new List<RaySplasherTurret>();
 	public void removeOwnedTurrets() {
 		for (int i = turrets.Count - 1; i >= 0; i--) {
 			turrets[i].destroySelf();
 		}
 	}
 
-	public List<GrenadeProj> grenades = new List<GrenadeProj>();
 	public void removeOwnedGrenades() {
 		for (int i = grenades.Count - 1; i >= 0; i--) {
 			grenades[i].destroySelf();
@@ -1676,7 +1699,6 @@ public partial class Player {
 		grenades.Clear();
 	}
 
-	public List<ChillPIceStatueProj> iceStatues = new List<ChillPIceStatueProj>();
 	public void removeOwnedIceStatues() {
 		for (int i = iceStatues.Count - 1; i >= 0; i--) {
 			iceStatues[i].destroySelf();
@@ -1684,7 +1706,6 @@ public partial class Player {
 		iceStatues.Clear();
 	}
 
-	public List<WSpongeSpike> seeds = new List<WSpongeSpike>();
 	public void removeOwnedSeeds() {
 		for (int i = seeds.Count - 1; i >= 0; i--) {
 			seeds[i].destroySelf();
@@ -1692,7 +1713,6 @@ public partial class Player {
 		seeds.Clear();
 	}
 
-	public List<Actor> mechaniloids = new List<Actor>();
 	public void removeOwnedMechaniloids() {
 		for (int i = mechaniloids.Count - 1; i >= 0; i--) {
 			mechaniloids[i].destroySelf();
@@ -1814,9 +1834,6 @@ public partial class Player {
 		return 5;
 	}
 
-	ExplodeDieEffect explodeDieEffect;
-	public Character limboChar;
-
 	public bool canReviveVile() {
 		if (Global.level.isElimination() ||
 			!lastDeathCanRevive ||
@@ -1841,7 +1858,7 @@ public partial class Player {
 		bool basicCheck = !Global.level.isElimination() && limboChar != null && lastDeathCanRevive && isSigma && newCharNum == 4 && currency >= reviveSigmaCost && !lastDeathWasSigmaHyper;
 		if (!basicCheck) return false;
 
-		if (isSigma1()) {
+		if (false) {
 			Point deathPos = limboChar.pos;
 
 			// Get ground snapping pos
@@ -1869,13 +1886,13 @@ public partial class Player {
 				return false;
 			}
 			foreach (var player in Global.level.players) {
-				if (player.character?.isHyperSigmaBS.getValue() == true && player.isSigma1Or3() && player.character.pos.distanceTo(deathPos) < Global.screenW) {
+				if (player.character is WolfSigma && player.character.pos.distanceTo(deathPos) < Global.screenW) {
 					return false;
 				}
 			}
-		} else if (isSigma2()) {
+		} else if (false) {
 			return true;
-		} else if (isSigma3()) {
+		} else if (true) {
 			return limboChar != null && KaiserSigma.canKaiserSpawn(limboChar, out spawnPoint);
 		}
 
@@ -1907,9 +1924,7 @@ public partial class Player {
 			explodeDieEffect = null;
 		}
 		limboChar = null;
-		if (!weapons.Any(w => w is MechMenuWeapon)) {
-			weapons.Add(new MechMenuWeapon(VileMechMenuType.All));
-		}
+		vile.rideMenuWeapon = new MechMenuWeapon(VileMechMenuType.All);
 		character.changeState(new VileRevive(vileFormToRespawnAs == 2), true);
 		RPC.playerToggle.sendRpc(id, vileFormToRespawnAs == 2 ? RPCToggleType.ReviveVileTo5 : RPCToggleType.ReviveVileTo2);
 	}
@@ -1933,35 +1948,34 @@ public partial class Player {
 		character.changeState(new VileRevive(toMK5), true);
 	}
 
-	public void reviveSigma(Point spawnPoint) {
+	public void reviveSigma(int form, Point spawnPoint) {
 		currency -= reviveSigmaCost;
 		hyperSigmaRespawn = true;
 		respawnTime = 0;
 		character = limboChar;
 		limboChar = null;
-		if (character?.destroyed == false) {
+		if (character.destroyed == false) {
 			character.destroySelf();
 		}
 		clearSigmaWeapons();
-		maxHealth = MathF.Ceiling(32 * getHealthModifier());
-		/*
-		if (isSigma1()) {
+		maxHealth = getModifiedHealth(32);
+		ushort newNetId = getNextATransNetId();
+		if (form == 0) {
 			if (Global.level.is1v1()) {
 				character.changePos(new Point(Global.level.width / 2, character.pos.y));
 			}
 			character.changeState(new WolfSigmaRevive(explodeDieEffect), true);
-		} else if (isSigma2()) {
+		} else if (form == 1) {
 			explodeDieEffect.changeSprite("sigma2_revive");
 			character.changeState(new ViralSigmaRevive(explodeDieEffect), true);
-		} else if (character is Doppma) {
-		*/
+		} else {
 			KaiserSigma kaiserSigma = new KaiserSigma(
 				this, spawnPoint.x, spawnPoint.y, character.xDir, true,
-				character.netId, character.ownedByLocalPlayer
+				newNetId, true
 			);
 			character = kaiserSigma;
-			character.changeSprite("sigma3_kaiser_enter", true);
-			explodeDieEffect.changeSprite("sigma3_revive");
+			character.changeSprite("kaisersigma_enter", true);
+			//explodeDieEffect.changeSprite("sigma3_revive");
 			if (Global.level.is1v1() && spawnPoint.isZero()) {
 				var closestSpawn = Global.level.spawnPoints.OrderBy(
 					s => s.pos.distanceTo(character.pos)
@@ -1969,22 +1983,23 @@ public partial class Player {
 				spawnPoint = closestSpawn?.pos ?? new Point(Global.level.width / 2, character.pos.y);
 			}
 			character.changeState(new KaiserSigmaRevive(explodeDieEffect, spawnPoint), true);
-		//}
-		RPC.playerToggle.sendRpc(id, RPCToggleType.ReviveSigma);
+		}
+		RPC.reviveSigma.sendRpc(form, spawnPoint, id, newNetId);
 	}
 
-	public void reviveSigmaNonOwner(Point spawnPoint) {
+	public void reviveSigmaNonOwner(int form, Point spawnPoint, ushort sigmaNetId) {
 		clearSigmaWeapons();
-		maxHealth = MathF.Ceiling(32 * getHealthModifier());
-		//if (character is Doppma) {
+		maxHealth = getModifiedHealth(32);
+		if (form >= 2) {
 			character.destroySelf();
 			KaiserSigma kaiserSigma = new KaiserSigma(
 				this, spawnPoint.x, spawnPoint.y, character.xDir, true,
-				character.netId, character.ownedByLocalPlayer
+				sigmaNetId, false
 			);
 			character = kaiserSigma;
-		//}
-		character.changeSprite("sigma3_kaiser_enter", true);
+
+			character.changeSprite("kaisersigma_enter", true);
+		}
 	}
 
 	public void reviveX() {
@@ -2034,7 +2049,6 @@ public partial class Player {
 		onCharacterDeath();
 	}
 
-	public bool suicided;
 	public void destroyCharacter() {
 		respawnTime = getRespawnTime();// * (suicided ? 2 : 1);
 		randomTip = Tips.getRandomTip(charNum);
@@ -2086,7 +2100,7 @@ public partial class Player {
 	}
 
 	public void maverick1v1Kill() {
-		character?.applyDamage(null, null, 1000, null);
+		character?.applyDamage(1000, null, null, null, null);
 		character?.destroySelf();
 		character = null;
 		respawnTime = getRespawnTime() * (suicided ? 2 : 1);
@@ -2098,17 +2112,17 @@ public partial class Player {
 	public void forceKill() {
 		if (maverick1v1 != null && Global.level.is1v1()) {
 			//character?.applyDamage(null, null, 1000, null);
-			currentMaverick?.applyDamage(null, null, 1000, null);
+			currentMaverick?.applyDamage(1000, this, character, null, null);
 			return;
 		}
 
 		if (currentMaverick != null && isTagTeam()) {
 			destroyCharacter();
 		} else {
-			character?.applyDamage(null, null, 1000, null);
+			character?.applyDamage(1000, this, character, null, null);
 		}
 		foreach (var maverick in mavericks) {
-			maverick.applyDamage(null, null, 1000, null);
+			maverick.applyDamage(1000, this, character, null, null);
 		}
 	}
 
@@ -2202,7 +2216,6 @@ public partial class Player {
 		setArmorNum(armorIndex, remove ? 3 : 15);
 	}
 
-	ushort savedArmorFlag;
 	public void setGoldenArmor(bool addOrRemove) {
 		if (addOrRemove) {
 			savedArmorFlag = armorFlag;
@@ -2217,17 +2230,19 @@ public partial class Player {
 	}
 
 	public void setUltimateArmor(bool addOrRemove) {
-		if (addOrRemove) {
-			ultimateArmor = true;
-			addNovaStrike();
-		} else {
-			ultimateArmor = false;
-			removeNovaStrike();
+		if (character is MegamanX mmx) {
+			if (addOrRemove) {
+				mmx.hasUltimateArmor = true;
+				addNovaStrike();
+			} else {
+				mmx.hasUltimateArmor = false;
+				removeNovaStrike();
+			}
 		}
 	}
 
 	public bool hasUltimateArmor() {
-		return ultimateArmor;
+		return character is MegamanX { hasUltimateArmor: true };
 	}
 
 	public int bootsArmorNum {
@@ -2256,11 +2271,6 @@ public partial class Player {
 	public bool hasBodyArmor(int xGame) { return bodyArmorNum == xGame; }
 	public bool hasHelmetArmor(int xGame) { return helmetArmorNum == xGame; }
 	public bool hasArmArmor(int xGame) { return armArmorNum == xGame; }
-
-	public bool[] headArmorsPurchased = new bool[] { false, false, false };
-	public bool[] bodyArmorsPurchased = new bool[] { false, false, false };
-	public bool[] armArmorsPurchased = new bool[] { false, false, false };
-	public bool[] bootsArmorsPurchased = new bool[] { false, false, false };
 
 	public bool isHeadArmorPurchased(int xGame) { return headArmorsPurchased[xGame - 1]; }
 	public bool isBodyArmorPurchased(int xGame) { return bodyArmorsPurchased[xGame - 1]; }
@@ -2417,9 +2427,6 @@ public partial class Player {
 		}
 	}
 
-	public float lastMashAmount;
-	public int lastMashAmountSetFrame;
-
 	public float mashValue() {
 		int mashCount = input.mashCount;
 		if (isAI && character?.ai != null) {
@@ -2444,11 +2451,6 @@ public partial class Player {
 		}
 
 		return (Global.spf + mashAmount);
-	}
-
-	public bool showHyperBusterCharge() {
-		if (character?.flag != null) return false;
-		return weapon is HyperBuster hb && hb.canShootIncludeCooldown(this);
 	}
 
 	// Sigma helper functions
@@ -2482,19 +2484,19 @@ public partial class Player {
 	}
 
 	public bool isWolfSigma() {
-		return isSigma && isSigma1() && character?.isHyperSigmaBS.getValue() == true;
+		return character is WolfSigma;
 	}
 
 	public bool isViralSigma() {
-		return isSigma && isSigma2() && character?.isHyperSigmaBS.getValue() == true;
+		return character is ViralSigma;
 	}
 
 	public bool isKaiserSigma() {
-		return isSigma && isSigma3() && character?.isHyperSigmaBS.getValue() == true;
+		return character is KaiserSigma;
 	}
 
 	public bool isKaiserViralSigma() {
-		return character != null && character.sprite.name.StartsWith("sigma3_kaiser_virus");
+		return character != null && character.sprite.name.StartsWith("kaisersigma_virus");
 	}
 
 	public bool isKaiserNonViralSigma() {

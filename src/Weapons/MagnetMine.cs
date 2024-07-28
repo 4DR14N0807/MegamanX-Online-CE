@@ -85,7 +85,7 @@ public class MagnetMineProj : Projectile, IDamagable {
 		}
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 		if (!ownedByLocalPlayer) {
 			return;
 		}
@@ -223,10 +223,12 @@ public class MagnetMineProjCharged : Projectile {
 			
 			if (size > 10) {
 				changeSprite("magnetmine_charged3", true);
-				damager.damage = 4;
+				updateDamager(4);
+				forceNetUpdateNextFrame = true;
 			} else if (size > 5) {
 				changeSprite("magnetmine_charged2", true);
-				damager.damage = 2;
+				updateDamager(2);
+				forceNetUpdateNextFrame = true;
 			}
 		}
 	}

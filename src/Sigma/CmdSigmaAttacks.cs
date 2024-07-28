@@ -73,7 +73,7 @@ public class SigmaSlashProj : Projectile {
 		maxTime = 0.1f;
 		projId = (int)ProjIds.SigmaSlash;
 		isMelee = true;
-		if (player?.character != null) {
+		if (player.character != null) {
 			owningActor = player.character;
 		}
 
@@ -205,11 +205,6 @@ public class SigmaWallDashState : CharState {
 		this.fromGround = fromGround;
 		superArmor = true;
 		useDashJumpSpeed = true;
-	}
-
-	public override bool canEnter(Character character) {
-		if (!base.canEnter(character)) return false;
-		return character?.player?.isSigma1() == true;
 	}
 
 	public override void onEnter(CharState oldState) {

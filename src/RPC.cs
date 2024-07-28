@@ -45,7 +45,7 @@ public class RPC {
 	public static RPCSendKillFeedEntry sendKillFeedEntry;
 	public static RPCSendChatMessage sendChatMessage;
 	public static RPCSyncControlPoints syncControlPoints;
-	public static RPCSetHyperZeroTime setHyperZeroTime;
+	public static RPCSetHyperAxlTime setHyperAxlTime;
 	public static RPCAxlShoot axlShoot;
 	public static RPCAxlDisguise axlDisguise;
 	public static RPCReportPlayerRequest reportPlayerRequest;
@@ -92,13 +92,14 @@ public class RPC {
 	// For mods and stuff.
 	// It allow to not override stuff when developing mods.
 	public static RPCCustom custom;
+	public static RPCUnknown unknown = new();
 	public static RpcChangeOwnership changeOwnership = new();
 	public static RpcReflect reflect = new();
 	public static RpcDeflect deflect = new();
 	public static RpcUpdateMaxTime updateMaxTime = new();
+	public static RpcReviveSigma reviveSigma = new();
 
-	public static List<RPC> templates = new List<RPC>()
-	{
+	public static RPC[] templates = new RPC[] {
 			(sendString = new RPCSendString()),
 			(startLevel = new RPCStartLevel()),
 			(spawnCharacter = new RPCSpawnCharacter()),
@@ -128,7 +129,7 @@ public class RPC {
 			(sendKillFeedEntry = new RPCSendKillFeedEntry()),
 			(sendChatMessage = new RPCSendChatMessage()),
 			(syncControlPoints = new RPCSyncControlPoints()),
-			(setHyperZeroTime = new RPCSetHyperZeroTime()),
+			(setHyperAxlTime = new RPCSetHyperAxlTime()),
 			(axlShoot = new RPCAxlShoot()),
 			(axlDisguise = new RPCAxlDisguise()),
 			(reportPlayerRequest = new RPCReportPlayerRequest()),
@@ -217,14 +218,14 @@ public class RPCStartLevel : RPC {
 		var rpcStartLevelJson = JsonConvert.DeserializeObject<RPCStartLevelJson>(message);
 
 		// Sometimes server won't have player in it preventing mainPlayer from being set, in this case need to be a late joiner
-		if (!rpcStartLevelJson.server.players.Any(p => p.id == Global.serverClient.serverPlayer.id)) {
-			Global.serverClient.disconnect("Host recreated before client could reconnect");
+		if (rpcStartLevelJson?.server.players.Any(p => p.id == Global.serverClient?.serverPlayer.id) != true) {
+			Global.serverClient?.disconnect("Host recreated before client could reconnect");
 			Global.serverClient = null;
 			Menu.change(new ErrorMenu(new string[] { "Could not reconnect in time.", "Please rejoin the server manually." }, new JoinMenu(false)));
 			return;
 		}
 
-		Global.level.startLevel(rpcStartLevelJson.server, false);
+		Global.level?.startLevel(rpcStartLevelJson.server, false);
 	}
 }
 
@@ -333,11 +334,11 @@ public class RPCApplyDamage : RPC {
 		bool isLinkedMelee = (linkedMeleeId != byte.MaxValue);
 
 		var player = Global.level.getPlayerById(ownerId);
-		var victim = Global.level.getActorByNetId(victimId);
+		var victim = Global.level.getActorByNetId(victimId, true);
 		Actor? actor = null;
 		// For when the projectile was a melee without a NetID.
 		if (isLinkedMelee) {
-			Actor mainActor = Global.level.getActorByNetId(actorId);
+			Actor? mainActor = Global.level.getActorByNetId(actorId, true);
 			List<Projectile> projs = new();
 			if (mainActor != null) {
 				// We try to search anything with a matching MeleeID.
@@ -355,7 +356,7 @@ public class RPCApplyDamage : RPC {
 		}
 		// For normal projectiles.
 		else {
-			actor = (actorId == 0 ? null : Global.level.getActorByNetId(actorId));
+			actor = (actorId == 0 ? null : Global.level.getActorByNetId(actorId, true));
 		}
 
 		if (player != null && victim != null) {
@@ -532,14 +533,12 @@ public enum RPCToggleType {
 	StopBarrier,
 	StockSaber,
 	UnstockSaber,
-	SetBlackZero,
 	SetWhiteAxl,
 	ReviveVileTo2,
 	ReviveVileTo5,
 	ReviveX,
 	StartRev,
-	StopRev,
-	ReviveSigma
+	StopRev
 }
 
 public class RPCPlayerToggle : RPC {
@@ -595,11 +594,7 @@ public class RPCPlayerToggle : RPC {
 		} else if (toggleId == RPCToggleType.UnstockSaber) {
 			if (player.character is MegamanX mmx) {
 				mmx.stockedXSaber = false;
-			}
-		} else if (toggleId == RPCToggleType.SetBlackZero) {
-			if (player.character is Zero zero) {
-				zero.blackZeroTime = Zero.maxBlackZeroTime;
-			}
+			} 
 		} else if (toggleId == RPCToggleType.SetWhiteAxl) {
 			if (player.character is Axl axl) {
 				axl.whiteAxlTime = axl.maxHyperAxlTime;
@@ -617,10 +612,6 @@ public class RPCPlayerToggle : RPC {
 		} else if (toggleId == RPCToggleType.StopRev) {
 			if (player.character is Axl axl) {
 				axl.isNonOwnerRev = false;
-			}
-		} else if (toggleId == RPCToggleType.ReviveSigma) {
-			if (player.character is BaseSigma) {
-				player.reviveSigmaNonOwner(player.character.pos);
 			}
 		}
 	}
@@ -651,7 +642,6 @@ public enum RPCActorToggleType {
 	ChangeToParriedState,
 	KaiserShellFadeOut,
 	AddVaccineTime,
-	ActivateBlackZero2,
 	AddWolfSigmaIntroMusicSource,
 }
 
@@ -670,7 +660,7 @@ public class RPCActorToggle : RPC {
 				byte damage = arguments[1];
 				CrackedWall crackedWall = Global.level.getCrackedWallById(crackedWallId);
 				if (crackedWall != null) {
-					crackedWall.applyDamage(null, null, damage, null);
+					crackedWall.applyDamage(damage, null, null, null, null);
 				}
 			}
 			return;
@@ -685,8 +675,9 @@ public class RPCActorToggle : RPC {
 
 		ushort netId = BitConverter.ToUInt16(arguments, 0);
 		var actor = Global.level.getActorByNetId(netId);
-		if (actor == null) return;
-
+		if (actor == null) {
+			return;
+		}
 		if (toggleId == RPCActorToggleType.SonicSlicerBounce) {
 			actor.playSound("dingX2");
 			new Anim(actor.pos, "sonicslicer_sparks", actor.xDir, null, true);
@@ -739,10 +730,6 @@ public class RPCActorToggle : RPC {
 			(actor as Anim)?.setFadeOut(0.25f);
 		} else if (toggleId == RPCActorToggleType.AddVaccineTime) {
 			(actor as Character)?.addVaccineTime(2);
-		} else if (toggleId == RPCActorToggleType.ActivateBlackZero2) {
-			if (actor is Zero zero) {
-				zero.blackZeroTime = 9999;
-			}
 		}
 	}
 
@@ -819,13 +806,15 @@ public class RPCCreateAnim : RPC {
 
 		// The rest of the bytes are for optional, expensive-to-sync data that should be used sparingly.
 		RPCAnimModel extendedAnimModel = null;
-		Actor zIndexRelActor = null;
+		Actor? zIndexRelActor = null;
 		if (arguments.Length > 13) {
 			var argumentsList = arguments.ToList();
 			var restofArgs = argumentsList.GetRange(13, argumentsList.Count - 13);
 			extendedAnimModel = Helpers.deserialize<RPCAnimModel>(restofArgs.ToArray());
 			if (extendedAnimModel.zIndexRelActorNetId != null) {
-				zIndexRelActor = Global.level.getActorByNetId(extendedAnimModel.zIndexRelActorNetId.Value);
+				zIndexRelActor = Global.level.getActorByNetId(
+					extendedAnimModel.zIndexRelActorNetId.Value, true
+				);
 			}
 		}
 
@@ -1180,8 +1169,8 @@ public class RPCSyncControlPoints : RPC {
 	}
 }
 
-public class RPCSetHyperZeroTime : RPC {
-	public RPCSetHyperZeroTime() {
+public class RPCSetHyperAxlTime : RPC {
+	public RPCSetHyperAxlTime() {
 		netDeliveryMethod = NetDeliveryMethod.ReliableOrdered;
 	}
 
@@ -1190,10 +1179,6 @@ public class RPCSetHyperZeroTime : RPC {
 		int time = arguments[1];
 		int type = arguments[2];
 		var player = Global.level.getPlayerById(playerId);
-		if (player?.character is Zero zero) {
-			if (type == 0) zero.blackZeroTime = time;
-			if (type == 2) zero.awakenedZeroTime = time;
-		}
 		if (player?.character is Axl axl) {
 			if (type == 1) axl.whiteAxlTime = time;
 		}
@@ -1217,7 +1202,7 @@ public class RPCAxlShoot : RPC {
 		float x = BitConverter.ToSingle(new byte[] { arguments[5], arguments[6], arguments[7], arguments[8] }, 0);
 		float y = BitConverter.ToSingle(new byte[] { arguments[9], arguments[10], arguments[11], arguments[12] }, 0);
 		int xDir = Helpers.byteToDir(arguments[13]);
-		float angle = Helpers.byteToAngle(arguments[14]);
+		float angle = Helpers.byteToDegree(arguments[14]);
 		int axlBulletWeaponType = arguments.InRange(15) ? arguments[16] : 0;
 
 		var player = Global.level.getPlayerById(playerId);
@@ -1330,7 +1315,7 @@ public class RPCAxlShoot : RPC {
 			this, (byte)playerId, projIdBytes[0], projIdBytes[1], netIdBytes[0], netIdBytes[1],
 			xBytes[0], xBytes[1], xBytes[2], xBytes[3],
 			yBytes[0], yBytes[1], yBytes[2], yBytes[3],
-			Helpers.dirToByte(xDir), Helpers.angleToByte(angle)
+			Helpers.dirToByte(xDir), Helpers.degreeToByte(angle)
 		);
 	}
 }
@@ -1659,11 +1644,13 @@ public class RPCHeal : RPC {
 		ushort healNetId = BitConverter.ToUInt16(new byte[] { arguments[1], arguments[2] }, 0);
 		int healAmount = arguments[3];
 
-		var actor = Global.level.getActorByNetId(healNetId);
-		if (actor == null) return;
-		var player = Global.level.getPlayerById(playerId);
+		Actor? actor = Global.level.getActorByNetId(healNetId, true);
+		if (actor == null) {
+			return;
+		}
+		Player player = Global.level.getPlayerById(playerId);
 
-		var damagable = actor as IDamagable;
+		IDamagable? damagable = actor as IDamagable;
 		if (damagable != null) {
 			if (actor.ownedByLocalPlayer) {
 				damagable.heal(player, healAmount, allowStacking: true, drawHealText: true);
@@ -1837,7 +1824,7 @@ public class RPCClearOwnership : RPC {
 
 	public override void invoke(params byte[] arguments) {
 		ushort netId = BitConverter.ToUInt16(new byte[] { arguments[0], arguments[1] }, 0);
-		var actor = Global.level.getActorByNetId(netId);
+		var actor = Global.level.getActorByNetId(netId, true);
 		if (actor == null) return;
 		actor.ownedByLocalPlayer = false;
 	}
@@ -1858,13 +1845,15 @@ public class RPCPlaySound : RPC {
 		ushort netId = BitConverter.ToUInt16(arguments, 0);
 		ushort soundIndex = BitConverter.ToUInt16(new byte[] { arguments[2], arguments[3] }, 0);
 
-		var actor = Global.level.getActorByNetId(netId);
-		if (actor == null) return;
+		Actor? actor = Global.level.getActorByNetId(netId);
+		if (actor == null) { return; }
 
 		if (soundIndex < Global.soundCount) {
 			string sound = Global.soundNameByIndex[soundIndex];
-			var soundWrapper = actor.playSound(sound);
-			actor.netSounds[soundIndex] = soundWrapper;
+			SoundWrapper? soundWrapper = actor.playSound(sound);
+			if (soundWrapper != null) {
+				actor.netSounds[soundIndex] = soundWrapper;
+			}
 		}
 	}
 
@@ -1891,8 +1880,8 @@ public class RPCStopSound : RPC {
 		ushort netId = BitConverter.ToUInt16(arguments, 0);
 		ushort soundIndex = BitConverter.ToUInt16(new byte[] { arguments[2], arguments[3] }, 0);
 
-		var actor = Global.level.getActorByNetId(netId);
-		if (actor == null) return;
+		var actor = Global.level.getActorByNetId(netId, true);
+		if (actor == null) { return; }
 
 		if (actor.netSounds.ContainsKey(soundIndex)) {
 			SoundWrapper soundWrapper = actor.netSounds[soundIndex];
@@ -1930,7 +1919,7 @@ public class RPCAddDamageText : RPC {
 
 		if (Global.level?.mainPlayer == null) return;
 		if (Global.level.mainPlayer.id != attackerId) return;
-		var actor = Global.level.getActorByNetId(netId);
+		Actor? actor = Global.level.getActorByNetId(netId, true);
 		if (actor == null) return;
 
 		float floatDamage = damage / 10f;
@@ -2031,10 +2020,11 @@ public class RPCBoundBlasterStick : RPC {
 		short yPos = BitConverter.ToInt16(new byte[] { arguments[6], arguments[7] }, 0);
 
 		BoundBlasterAltProj? beaconActor = Global.level.getActorByNetId(beaconNetId) as BoundBlasterAltProj;
-		Actor stuckActor = Global.level.getActorByNetId(stuckActorNetId);
+		Actor? stuckActor = Global.level.getActorByNetId(stuckActorNetId);
 
-		if (beaconActor == null || stuckActor == null) return;
-
+		if (beaconActor == null || stuckActor == null) {
+			return;
+		}
 		beaconActor.isActorStuck = true;
 		beaconActor.stuckActor = stuckActor;
 		beaconActor.stopSyncingNetPos = true;
@@ -2068,6 +2058,7 @@ public class RPCBroadcastLoadout : RPC {
 
 		player.loadout = loadout;
 		player.configureStaticWeapons();
+		player.loadoutSet = true;
 	}
 
 	public void sendRpc(Player player) {
@@ -2090,7 +2081,7 @@ public class RPCCreditPlayerKillMaverick : RPC {
 
 		Player killer = Global.level.getPlayerById(killerId);
 		Player assister = Global.level.getPlayerById(assisterId);
-		Maverick? victim = Global.level.getActorByNetId(victimNetId) as Maverick;
+		Maverick? victim = Global.level.getActorByNetId(victimNetId, true) as Maverick;
 
 		victim?.creditMaverickKill(killer, assister, weaponIndex);
 	}
@@ -2131,10 +2122,13 @@ public class RPCCreditPlayerKillVehicle : RPC {
 
 		Player killer = Global.level.getPlayerById(killerId);
 		Player assister = Global.level.getPlayerById(assisterId);
-		Actor victim = Global.level.getActorByNetId(victimNetId);
+		Actor? victim = Global.level.getActorByNetId(victimNetId, true);
 
-		if (victim is RideArmor ra) ra.creditKill(killer, assister, weaponIndex);
-		else if (victim is RideChaser rc) rc.creditKill(killer, assister, weaponIndex);
+		if (victim is RideArmor ra) {
+			ra.creditKill(killer, assister, weaponIndex);
+		} else if (victim is RideChaser rc) {
+			rc.creditKill(killer, assister, weaponIndex);
+		}
 	}
 
 	public void sendRpc(Player killer, Player assister, Actor victim, int? weaponIndex) {
@@ -2169,7 +2163,7 @@ public class RPCChangeDamage : RPC {
 		float damage = BitConverter.ToSingle(new byte[] { arguments[2], arguments[3], arguments[4], arguments[5] }, 0);
 		int flinch = arguments[6];
 
-		var proj = Global.level.getActorByNetId(netId) as Projectile;
+		var proj = Global.level.getActorByNetId(netId, true) as Projectile;
 		if (proj?.damager != null) {
 			proj.damager.damage = damage;
 			proj.damager.flinch = flinch;
@@ -2211,10 +2205,13 @@ public class RPCCheckRAEnter : RPC {
 		int raNum = arguments[4];
 
 		Player player = Global.level.getPlayerById(playerId);
-		if (player == null) return;
+		if (player == null) {
+			return;
+		}
 		RideArmor? ra = Global.level.getActorByNetId(raNetId) as RideArmor;
-		if (ra == null) return;
-
+		if (ra == null) {
+			return;
+		}
 		if (ra.isNeutral && ra.ownedByLocalPlayer && !ra.claimed && ra.character == null) {
 			ra.claimed = true;
 			RPC.raEnter.sendRpc(player.id, ra.netId, neutralId, raNum);

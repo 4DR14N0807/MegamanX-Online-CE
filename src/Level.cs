@@ -11,6 +11,8 @@ public partial class Level {
 	#region dynamic lists
 	// Any list that can grow over time should be put here for memory leak investigation
 	public HashSet<GameObject> gameObjects = new HashSet<GameObject>();
+	public Dictionary<ushort, Actor> actorsById = new();
+	public Dictionary<ushort, Actor> destroyedActorsById = new();
 	public List<Actor> mapSprites = new List<Actor>();
 	public List<List<HashSet<GameObject>>> grid = new List<List<HashSet<GameObject>>>();
 	public HashSet<HashSet<GameObject>> occupiedGridSets = new HashSet<HashSet<GameObject>>();
@@ -74,7 +76,7 @@ public partial class Level {
 	public Texture[,] backgroundSprites;
 	public Texture[,] backwallSprites;
 	public Texture[,] foregroundSprites;
-	public const int gridSize = 50;
+	public const int gridSize = 48;
 	public bool started = false;
 	public bool joinedLate;
 	public int width;
@@ -101,7 +103,8 @@ public partial class Level {
 	public int startGridCount;
 	public int flaggerCount;
 
-	public const ushort maxReservedNetId = 50;
+	public const ushort maxReservedNetId = firstNormalNetId - 1;
+	public const ushort firstNormalNetId = 50;
 	public const ushort maxReservedCharNetId = 50;
 	public const ushort redFlagNetId = 10;
 	public const ushort blueFlagNetId = 11;
@@ -117,7 +120,7 @@ public partial class Level {
 
 	public List<Player> players = new List<Player>();
 	public Player mainPlayer;
-	public Player otherPlayer {
+	public Player? otherPlayer {
 		get {
 			return players.FirstOrDefault(p => !p.isMainPlayer);
 		}
@@ -149,7 +152,7 @@ public partial class Level {
 			return mainPlayer;
 		}
 	}
-	public Player getNextSpecPlayer(int inc) {
+	public Player? getNextSpecPlayer(int inc) {
 		var otherPlayers = spectatablePlayers();
 		if (otherPlayers.Count == 0) return null;
 
@@ -945,12 +948,21 @@ public partial class Level {
 		}
 	}
 
-	public Actor getActorByNetId(ushort netId) {
+	public Actor? getActorByNetId(ushort netId, bool getDestroyed = false) {
+		/*
 		foreach (var go in gameObjects) {
 			var actor = go as Actor;
 			if (actor?.netId == netId) {
 				return actor;
 			}
+		}
+		return null;
+		*/
+		if (Global.level.actorsById.ContainsKey(netId)) {
+			return Global.level.actorsById[netId];
+		}
+		if (getDestroyed && Global.level.destroyedActorsById.ContainsKey(netId)) {
+			return Global.level.destroyedActorsById[netId];
 		}
 		return null;
 	}
@@ -1036,8 +1048,10 @@ public partial class Level {
 
 	public bool isSendMessageFrame() {
 		return (
-			!Global.isSkippingFrames &&
-			Global.level.nonSkippedframeCount % Global.tickRate == 0
+			!Global.isSkippingFrames && (
+				Global.tickRate <= 1 ||
+				Global.level.nonSkippedframeCount % Global.tickRate == 0
+			)
 		);
 	}
 
@@ -1228,7 +1242,7 @@ public partial class Level {
 							if (damagable.projectileCooldown["sigmavirus"] == 0) {
 								actor.playSound("hit");
 								actor.addRenderEffect(RenderEffectType.Hit, 0.05f, 0.1f);
-								damagable.applyDamage(null, null, 2, null);
+								damagable.applyDamage(2, null, null, null, null);
 								damagable.projectileCooldown["sigmavirus"] = 1;
 							}
 						}
@@ -1280,7 +1294,9 @@ public partial class Level {
 				float deltaX = fullDeltaX;
 				float deltaY = fullDeltaY;
 
-				if (camPlayer.character?.charState is not InRideChaser) {
+				if (camPlayer.character?.charState is not InRideChaser &&
+					(camPlayer.character as Axl)?.isZooming() != true
+				) {
 					int camSpeed = 4;
 					if (MathF.Abs(deltaX) > camSpeed) {
 						deltaX = camSpeed * MathF.Sign(fullDeltaX);
@@ -1688,21 +1704,59 @@ public partial class Level {
 
 		if (Global.showGridHitboxes) {
 			int gridItemCount = 0;
-			for (int i = 0; i < grid.Count; i++) {
-				for (int j = 0; j < grid[i].Count; j++) {
+			int offset = 0;
+			int startGridX = MathInt.Floor(camX / cellWidth);
+			int endGridX = MathInt.Ceiling((camX + Global.screenW) / cellWidth);
+			int startGridY = MathInt.Floor(camY / cellWidth);
+			int endGridY = MathInt.Ceiling((camY + Global.screenH) / cellWidth);
+			
+			bool drawPos = (cellWidth >= 32);
+			int firstRowSize = 10;
+			string separator = "-";
+			if (cellWidth < 48) {
+				separator = "\n";
+				firstRowSize = 20;
+			}
+		
+			startGridX = MathInt.Clamp(startGridX, 0, grid[0].Count);
+			endGridX = MathInt.Clamp(endGridX, 0, grid[0].Count);
+			startGridY = MathInt.Clamp(startGridY, 0, grid.Count);
+			endGridY = MathInt.Clamp(endGridY, 0, grid.Count);
+
+			for (int i = startGridY; i < endGridY; i++) {
+				for (int j = startGridX; j < endGridX; j++) {
 					if (grid[i][j].Count > 0) {
 						gridItemCount += grid[i][j].Count;
-						DrawWrappers.DrawRect(j * gridSize, i * gridSize, gridSize + (j * gridSize), gridSize + (i * gridSize), true, new Color(0, 255, 0, 128), 1, ZIndex.HUD + 100, true, Color.Magenta);
-						Fonts.drawText(
-							FontType.DarkBlue, "i:" + i.ToString() + ",j:" + j.ToString(),
-							(j * gridSize) - Global.level.camX / Global.viewSize,
-							10 + (i * gridSize) - Global.level.camY / Global.viewSize
+						DrawWrappers.DrawRect(
+							j * cellWidth,
+							i * cellWidth,
+							cellWidth + (j * cellWidth) - 1,
+							cellWidth + (i * cellWidth) - 1,
+							true, new Color(200, 255, 200, 64), 1,
+							ZIndex.HUD - 15, true, new Color(128, 255, 128, 128)
 						);
+						if (cellWidth >= 32) {
+							Fonts.drawText(
+								FontType.Purple,
+								i.ToString() + separator + j.ToString(),
+								(j * cellWidth) + 1,
+								(i * cellWidth) + 1,
+								isWorldPos: true,
+								depth: ZIndex.HUD - 10,
+								alpha: 192
+							);
+							offset += firstRowSize;
+						}
 						Fonts.drawText(
-							FontType.DarkPurple, "count:" + grid[i][j].Count.ToString(),
-							(j * gridSize) - Global.level.camX / Global.viewSize,
-							(i * gridSize) - Global.level.camY / Global.viewSize
+							FontType.DarkPurple,
+							grid[i][j].Count.ToString(),
+							(j * cellWidth),
+							offset + (i * cellWidth) + 1,
+							isWorldPos: true,
+							depth: ZIndex.HUD - 10,
+							alpha: 192
 						);
+						offset = 0;
 					}
 				}
 			}
@@ -2118,6 +2172,10 @@ public partial class Level {
 		return is1v1() && server?.customMatchSettings?.hyperModeMatch == true;
 	}
 
+	public bool isHyperMatch() {
+		return server?.customMatchSettings?.hyperModeMatch == true;
+	}
+
 	public bool isTraining() {
 		return levelData.isTraining();
 	}
@@ -2249,6 +2307,14 @@ public partial class Level {
 		var players = Global.level?.server?.players;
 		if (players == null || players.Count == 0) return 0;
 		return players.Max(p => p.kills);
+	}
+
+	public void clearOldActors() {
+		foreach ((ushort actorId, Actor actor) in destroyedActorsById) {
+			if (frameCount - actor.destroyedOnFrame is > 360 or < 0) {
+				destroyedActorsById.Remove(actorId);
+			}
+		}
 	}
 }
 

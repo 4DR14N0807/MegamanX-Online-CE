@@ -5,12 +5,12 @@ using SFML.Graphics;
 namespace MMXOnline;
 
 #region Wolf Sigma Char State
-public class WolfSigma : CharState {
+public class WolfSigmaHeadState : CharState {
 	bool winTauntOnce;
 	Point startPos;
 	public BaseSigma sigma;
 
-	public WolfSigma() : base("head") {
+	public WolfSigmaHeadState() : base("head") {
 		immuneToWind = true;
 	}
 
@@ -239,7 +239,7 @@ public class WolfSigmaHead : Actor, IDamagable {
 
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 	}
 
 	public bool canBeDamaged(int damagerAlliance, int? damagerPlayerId, int? projId) {
@@ -583,7 +583,7 @@ public class WolfSigmaHand : Actor, IDamagable {
 			};
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 	}
 
 	public bool canBeDamaged(int damagerAlliance, int? damagerPlayerId, int? projId) {
@@ -847,7 +847,7 @@ public class WolfSigmaRevive : CharState {
 
 				player.weaponSlot = 1;
 
-				character.changeState(new WolfSigma(), true);
+				character.changeState(new WolfSigmaHeadState(), true);
 				character.addMusicSource("wolfSigmaIntro", character.pos.addxy(0, -75), false, loop: false);
 				RPC.actorToggle.sendRpc(character.netId, RPCActorToggleType.AddWolfSigmaMusicSource);
 			}

@@ -75,6 +75,9 @@ public class Axl : Character {
 
 	public PlasmaGunAltProj? plasmaGunAltProj;
 
+	public bool shouldDrawArmNet;
+	public bool stealthActive;
+
 	public Axl(
 		Player player, float x, float y, int xDir,
 		bool isVisible, ushort? netId, bool ownedByLocalPlayer,
@@ -268,6 +271,12 @@ public class Axl : Character {
 			}
 		}
 
+		if (stealthActive) {
+			addRenderEffect(RenderEffectType.StealthModeBlue);
+		} else {
+			removeRenderEffect(RenderEffectType.StealthModeBlue);
+		}
+
 		// Cutoff point for things not controlled by the local player.
 		if (!ownedByLocalPlayer) {
 			if (isNonOwnerRev) {
@@ -300,6 +309,9 @@ public class Axl : Character {
 
 		if (isStealthMode()) {
 			updateStealthMode();
+			stealthActive = true;
+		} else {
+			stealthActive = false;
 		}
 
 		if (isZooming() && deltaPos.magnitude > 1) {
@@ -457,7 +469,6 @@ public class Axl : Character {
 						if (!isWhiteAxl()) {
 							player.axlWeapon?.axlShoot(player, AxlBulletType.AltFire);
 						} else {
-							player.axlWeapon?.axlShoot(player, AxlBulletType.WhiteAxlCopyShot2);
 							player.axlWeapon?.axlShoot(player, AxlBulletType.WhiteAxlCopyShot2);
 						}
 					}
@@ -1165,7 +1176,7 @@ public class Axl : Character {
 		base.render(x, y);
 
 		if (!ownedByLocalPlayer) {
-			if (shouldDrawArmBS.getValue()) {
+			if (shouldDrawArmNet) {
 				drawArm(netArmAngle);
 			}
 
@@ -1548,19 +1559,15 @@ public class Axl : Character {
 		if (!player.isAxl) return;
 		if (Global.level.is1v1()) return;
 
-		if (player.weapons.Count < 8 || Global.level.isTraining()) {
-			int loopCount = 1;
-			if (Global.debug && Global.debugDNACores && Global.level.isTraining()) loopCount = 4;
-			for (int i = 0; i < loopCount; i++) {
-				var dnaCoreWeapon = new DNACore(hitChar);
-				dnaCoreWeapon.index = (int)WeaponIds.DNACore - player.weapons.Count;
-				if (player.isDisguisedAxl) {
-					player.oldWeapons?.Add(dnaCoreWeapon);
-				} else {
-					player.weapons.Add(dnaCoreWeapon);
-				}
-				player.savedDNACoreWeapons.Add(dnaCoreWeapon);
+		if (player.weapons.Count((Weapon weapon) => weapon is DNACore) < 4) {
+			var dnaCoreWeapon = new DNACore(hitChar);
+			dnaCoreWeapon.index = (int)WeaponIds.DNACore - player.weapons.Count;
+			if (player.isDisguisedAxl) {
+				player.oldWeapons?.Add(dnaCoreWeapon);
+			} else {
+				player.weapons.Add(dnaCoreWeapon);
 			}
+			player.savedDNACoreWeapons.Add(dnaCoreWeapon);
 		}
 	}
 
@@ -1577,10 +1584,6 @@ public class Axl : Character {
 
 	public bool isStealthMode() {
 		return player.isAxl && isInvisible();
-	}
-
-	public bool isStealthModeSynced() {
-		return player.isAxl && isInvisibleBS.getValue() == true;
 	}
 
 	float stealthCurrencyTime;
@@ -1694,19 +1697,16 @@ public class Axl : Character {
 		return base.getCamCenterPos(ignoreZoom);
 	}
 
-	public override void changeState(CharState newState, bool forceChange = false) {
-		if (!forceChange && charState != null && newState != null &&
-			charState.GetType() == newState.GetType() ||
-			 !forceChange && changedStateInFrame
-		) {
-			return;
+	public override bool changeState(CharState newState, bool forceChange = false) {
+		bool hasChanged = base.changeState(newState, forceChange);
+		if (!hasChanged) {
+			return false;
 		}
-		base.changeState(newState, forceChange);
-
 		if (gaeaShield != null && shouldDrawArm() == false) {
 			gaeaShield.destroySelf();
 			gaeaShield = null;
 		}
+		return true;
 	}
 
 	public override void destroySelf(
@@ -1789,5 +1789,71 @@ public class Axl : Character {
 			}
 		}
 		return hasEmptyAmmo;
+	}
+
+	public override bool canBeDamaged(int damagerAlliance, int? damagerPlayerId, int? projId) {
+		bool damaged = base.canBeDamaged(damagerAlliance, damagerPlayerId, projId);
+		if (stealthActive) {
+			return false;
+		}
+		return damaged;
+	}
+
+	public override bool isStealthy(int alliance) {
+		return (player.alliance != alliance && (stealthActive || player.isDisguisedAxl && !disguiseCoverBlown));
+	}
+
+	public override bool isCCImmuneHyperMode() {
+		return isStealthMode();
+	}
+
+
+	public override bool isInvulnerable(bool ignoreRideArmorHide = false, bool factorHyperMode = false) {
+		bool invul = base.isInvulnerable(ignoreRideArmorHide, factorHyperMode);
+		if (stealthActive) {
+			return true;
+		}
+		return invul;
+	}
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = base.getCustomActorNetData();
+
+		customData.Add((byte)(player.weapon?.index ?? 0));
+		customData.Add((byte)MathF.Ceiling(player.weapon?.ammo ?? 0));
+
+		customData.Add(Helpers.degreeToByte(netArmAngle));
+		customData.Add(Helpers.degreeToByte(player.axlBulletType));
+
+		customData.Add(Helpers.boolArrayToByte([
+			shouldDrawArm(),
+			stealthActive
+		]));
+
+		customData.AddRange(BitConverter.GetBytes(
+			Global.spriteIndexByName.GetValueOrCreate(getAxlArmSpriteName(), ushort.MaxValue)
+		));
+
+		return customData;
+	}
+
+	public override void updateCustomActorNetData(byte[] data) {
+		// Update base arguments.
+		base.updateCustomActorNetData(data);
+		data = data[data[0]..];
+
+		// Per-character data.
+		player.changeWeaponFromWi(data[0]);
+		if (player.weapon != null) {
+			player.weapon.ammo = data[1];
+		}
+		netArmAngle = Helpers.byteToDegree(data[2]);
+		player.axlBulletType = data[3];
+
+		bool[] boolData = Helpers.byteToBoolArray(data[4]);
+		shouldDrawArmNet = boolData[0];
+		stealthActive = boolData[1];
+
+		netAxlArmSpriteIndex = BitConverter.ToUInt16(data[5..7]);
 	}
 }

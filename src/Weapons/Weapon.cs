@@ -54,12 +54,12 @@ public class Weapon {
 	public bool drawCooldown = true;
 	public bool drawAmmo = true;
 	public bool drawRoundedDown = false;
+	public bool drawGrayOnLowAmmo = false;
 
 	public Weapon() {
 		ammo = 32;
 		maxAmmo = 32;
 		rateOfFire = 0.15f;
-		shootSounds = new string[] { "", "", "", "" };
 	}
 
 	public Weapon(WeaponIds index, int killFeedIndex, Damager? damager = null) {
@@ -373,7 +373,7 @@ public class Weapon {
 
 	public static void gigaAttackSoundLogic(
 		Actor actor, float oldAmmo, float newAmmo, float steps, float maxAmmo,
-		string normalSound = "gigaCrushRecharge", string maxSound = "gigaCrushAmmoFull"
+		string normalSound = "gigaCrushAmmoRecharge", string maxSound = "gigaCrushAmmoFull"
 	) {
 		if (oldAmmo >= newAmmo) {
 			return;
@@ -382,7 +382,9 @@ public class Weapon {
 		if (newAmmo >= maxAmmo) {
 			actor.playSound(maxSound);
 		} else {
-			actor.playSound(normalSound);
+			if (oldAmmo < nextCharge && newAmmo >= nextCharge) {
+				actor.playSound(normalSound);
+			}
 		}
 	}
 }

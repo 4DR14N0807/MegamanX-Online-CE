@@ -15,6 +15,7 @@ public class HexaInvoluteState : CharState {
 	HexaInvoluteProj proj;
 	bool startGrounded;
 	float ammoTime;
+	Vile vile = null!;
 
 	public HexaInvoluteState() : base("super", "", "", "") {
 		superArmor = true;
@@ -50,6 +51,7 @@ public class HexaInvoluteState : CharState {
 
 	public override void onEnter(CharState oldState) {
 		base.onEnter(oldState);
+		vile = character as Vile ?? throw new NullReferenceException();
 		if (character.grounded) {
 			startGrounded = true;
 		}
@@ -247,5 +249,16 @@ public class HexaInvoluteProj : Projectile {
 			Global.sounds.Remove(sound);
 			sound = null;
 		}
+	}
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = new();
+		customData.AddRange(BitConverter.GetBytes(ang));
+
+		return customData;
+	}
+
+	public override void updateCustomActorNetData(byte[] data) {
+		ang = BitConverter.ToSingle(data, 0);
 	}
 }

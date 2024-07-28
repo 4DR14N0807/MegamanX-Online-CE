@@ -178,17 +178,17 @@ class Program {
 		}
 
 		// Loading with GUI.
-		loadText.Add("Getting Masterserver URL...");
+		loadText.Add("Getting Master Server URL...");
 		loadMultiThread(loadText, window, MasterServerData.updateMasterServerURL);
 		if (MasterServerData.serverIp == "127.0.0.1") {
 			loadText[loadText.Count - 1] = "Using local conection.";
 		} else {
-			loadText[loadText.Count - 1] = "Masterserver OK.";
+			loadText[loadText.Count - 1] = "Master Server OK.";
 		}
 
 		loadText.Add("Loading Sprites...");
 		loadMultiThread(loadText, window, loadImages);
-		loadText[loadText.Count - 1] = "Loaded Sprites.";
+		loadText[loadText.Count - 1] = $"Loaded {Global.textures.Count} Sprites.";
 
 		loadText.Add("Loading Sprite JSONS...");
 		loadMultiThread(loadText, window, loadSprites);
@@ -196,7 +196,7 @@ class Program {
 
 		loadText.Add("Loading Maps...");
 		loadMultiThread(loadText, window, loadLevels);
-		loadText[loadText.Count - 1] = "Maps Loaded.";
+		loadText[loadText.Count - 1] = $"Loaded {Global.levelDatas.Count} Maps.";
 
 		loadText.Add("Loading SFX...");
 		loadMultiThread(loadText, window, loadSounds);
@@ -204,7 +204,7 @@ class Program {
 
 		loadText.Add("Loading Music...");
 		loadMultiThread(loadText, window, loadMusics);
-		loadText[loadText.Count - 1] = "Music Loaded.";
+		loadText[loadText.Count - 1] = $"Loaded {Global.musics.Count} Songs.";
 
 		loadText.Add("Calculating checksum...");
 		loadMultiThread(loadText, window, Global.computeChecksum);
@@ -225,8 +225,71 @@ class Program {
 
 		// Force startup config to be fetched
 		Menu.change(new MainMenu());
-		Global.changeMusic("MMX1-TitleScreen");
-
+		//Global.changeMusic(Global.level.levelData.getTitleTheme());
+		switch(Helpers.randomRange(1,19)) {
+			// Title screens
+			case 1:
+				Global.changeMusic("title_X1");
+				break;
+			case 2:
+				Global.changeMusic("title_X2");
+				break;
+			case 3:
+				Global.changeMusic("title_X3");
+				break;
+			// Stage Selects
+			case 4:
+				Global.changeMusic("stageSelect_X1");
+				break;
+			case 5:
+				Global.changeMusic("stageSelect2_X1");
+				break;
+			case 6:
+				Global.changeMusic("stageSelect_X2");
+				break;
+			case 7:
+				Global.changeMusic("stageSelect2_X2");
+				break;
+			case 8:
+				Global.changeMusic("stageSelect_X3");
+				break;
+			case 9:
+				Global.changeMusic("stageSelect2_X3");
+				break;
+			// Introduction
+			case 10:
+				Global.changeMusic("opening_X3");
+				break;
+			case 11:
+				Global.changeMusic("opening_X2");
+				break;
+			// Extra
+			case 12:
+				Global.changeMusic("ending_X3");
+				break;
+			case 13:
+				Global.changeMusic("ending_X2");
+				break;
+			case 14:
+				Global.changeMusic("ending_X1");
+				break;
+			case 15:
+				Global.changeMusic("credits_X1");
+				break;
+			case 16:
+				Global.changeMusic("demo_X2");
+				break;
+			case 17:
+				Global.changeMusic("demo_X3");
+				break;	
+			case 18:
+				Global.changeMusic("laboratory_X3");
+				break;	
+			case 19:
+				Global.changeMusic("sigmaFortress4");
+				break;			
+		}
+		
 		if (mode == 1) {
 			HostMenu menu = new HostMenu(new MainMenu(), null, false, false, true);
 			Menu.change(menu);
@@ -271,7 +334,10 @@ class Program {
 
 	private static void update() {
 		if (Global.levelStarted()) {
-			Helpers.tryWrap(Global.level.update, false);
+			Global.level.update();
+			if (!Global.isSkippingFrames) {
+				Global.level.clearOldActors();
+			}
 		}
 		Menu.update();
 		if (Global.leaveMatchSignal != null) {
@@ -729,7 +795,12 @@ class Program {
 		var invertedMaps = new HashSet<string>();
 		foreach (string levelPath in levelPaths) {
 			string levelText = File.ReadAllText(levelPath);
-			var levelData = new LevelData(levelText, false);
+			string levelIniText = "";
+			string levelIniLocation = Path.GetDirectoryName(levelPath) + "/mapData.ini";
+			if (File.Exists(levelIniLocation)) {
+				levelIniText = File.ReadAllText(levelIniLocation);
+			}
+			var levelData = new LevelData(levelText, levelIniText, false);
 
 			var pathPieces = levelPath.Split('/').ToList();
 			string fileName = pathPieces.Pop();
@@ -755,7 +826,12 @@ class Program {
 			if (levelPath.Contains("/sprites/")) continue;
 
 			string levelText = File.ReadAllText(levelPath);
-			var levelData = new LevelData(levelText, true);
+			string levelIniText = "";
+			string levelIniLocation = Path.GetDirectoryName(levelPath) + "/mapData.ini";
+			if (File.Exists(levelIniLocation)) {
+				levelIniText = File.ReadAllText(levelIniLocation);
+			}
+			var levelData = new LevelData(levelText, levelIniText, true);
 			if (levelData.name.EndsWith("_mirrored")) {
 				Global.levelDatas.Add(levelData.name, levelData);
 				levelData.isMirrored = true;

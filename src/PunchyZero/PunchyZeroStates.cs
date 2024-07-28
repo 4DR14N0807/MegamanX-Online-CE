@@ -460,7 +460,7 @@ public class HyperPunchyZeroStart : CharState {
 					}
 					if (virusAnim[i].destroyed) {
 						character.playSound("shingetsurinx5", true);
-						if (frameTime > 55) {
+						if (stateFrames > 55) {
 							virusAnim[i] = null!;
 							continue;
 						}
@@ -479,7 +479,7 @@ public class HyperPunchyZeroStart : CharState {
 						virusAnim[i] = createVirusAnim();
 					}
 				}
-				if (animCount == 0 && frameTime > 55 && virusEffectParts != null) {
+				if (animCount == 0 && stateFrames > 55 && virusEffectParts != null) {
 					virusEffectParts.destroySelf();
 				}
 			}
@@ -535,7 +535,7 @@ public class HyperPunchyZeroStart : CharState {
 			character.invulnTime = 0.5f;
 		}
 		if (zero.isAwakened || zero.isBlack) {
-			zero.hyperModeTimer = 20 * 60;
+			zero.hyperModeTimer = PunchyZero.maxBlackZeroTime + 30;
 		}
 		virusEffectParts?.destroySelf();
 		bool playedHitSound = false;
@@ -573,7 +573,7 @@ public class HyperPunchyZeroStart : CharState {
 
 	public void activateHypermode() {
 		if (zero.hyperMode == 1) {
-			zero.isAwakened = true;
+			zero.awakenedPhase = 1;
 			float storedAmmo = zero.gigaAttack.ammo;
 			zero.gigaAttack = new ShinMessenkou();
 			zero.gigaAttack.ammo = storedAmmo;

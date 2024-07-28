@@ -14,7 +14,7 @@ public class MorphMoth : Maverick {
 		stateCooldowns.Add(typeof(MorphMShootAir), new MaverickStateCooldown(true, false, 0.5f));
 
 		weapon = getWeapon();
-		spriteToCollider.Add("sweep", getDashCollider());
+		spriteToCollider["sweep"] = getDashCollider();
 
 		canFly = true;
 
@@ -153,6 +153,21 @@ public class MorphMBeamProj : Projectile {
 				};
 			DrawWrappers.DrawPolygon(points, colors[frameIndex], true, ZIndex.AboveFont);
 		}
+	}
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = new();
+
+		customData.AddRange(BitConverter.GetBytes(endPos.x));
+		customData.AddRange(BitConverter.GetBytes(endPos.y));
+
+		return customData;
+	}
+	public override void updateCustomActorNetData(byte[] data) {
+		float endX = BitConverter.ToSingle(data[0..4], 0);
+		float endY = BitConverter.ToSingle(data[4..8], 0);
+
+		setEndPos(new Point(endX, endY));
 	}
 }
 

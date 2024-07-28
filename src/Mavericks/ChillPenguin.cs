@@ -22,7 +22,7 @@ public class ChillPenguin : Maverick {
 		stateCooldowns.Add(typeof(ChillPSlideState), new MaverickStateCooldown(true, false, 0.5f));
 		stateCooldowns.Add(typeof(ChillPBlizzardState), new MaverickStateCooldown(false, false, 3f));
 		stateCooldowns.Add(typeof(MShoot), new MaverickStateCooldown(false, true, 0.75f));
-		spriteToCollider.Add("slide", getDashCollider());
+		spriteToCollider["slide"] = getDashCollider();
 
 		weapon = new Weapon(WeaponIds.ChillPGeneric, 93);
 
@@ -205,7 +205,7 @@ public class ChillPIceProj : Projectile {
 		}
 
 		if (rpc) {
-			rpcCreate(pos, player, netProjId, xDir);
+			rpcCreate(pos, player, netProjId, xDir, (byte)type);
 		}
 	}
 
@@ -317,7 +317,7 @@ public class ChillPIceStatueProj : Projectile, IDamagable {
 		owner.iceStatues.RemoveAll(i => i == this);
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 		health -= damage;
 		if (health <= 0) {
 			destroySelf();

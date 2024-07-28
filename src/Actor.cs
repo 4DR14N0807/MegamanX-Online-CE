@@ -9,14 +9,36 @@ namespace MMXOnline;
 public partial class Actor : GameObject {
 	public Sprite sprite; //Current sprite
 
-	public int frameIndex { get { return sprite.frameIndex; } set { if (sprite == null) { return; } sprite.frameIndex = value; } }
-	public float frameSpeed { get { return sprite.frameSpeed; } set { if (sprite == null) { return; } sprite.frameSpeed = value; } }
-	public float frameTime { get { return sprite.frameTime; } set { if (sprite == null) { return; } sprite.frameTime = value; } }
-	public float animTime { get { return sprite.animTime; } set { if (sprite == null) { return; } sprite.animTime = value; } }
-	public int loopCount { get { return sprite.loopCount; } }
+	public int frameIndex {
+		get => sprite.frameIndex;
+		set => sprite.frameIndex = value;
+	}
+	public float frameSpeed {
+		get => sprite.frameSpeed;
+		set => sprite.frameSpeed = value;
+	}
+	public float frameSeconds {
+		get => sprite.frameSeconds;
+		set => sprite.frameSeconds = value;
+	}
+	public float animSeconds {
+		get => sprite.animSeconds;
+		set => sprite.animSeconds = value;
+	}
+	public float frameTime {
+		get => sprite.frameTime;
+		set => sprite.frameTime = value;
+	}
+	public float animTime {
+		get => sprite.animTime;
+		set => sprite.animTime = value;
+	}
+	public int loopCount => sprite.loopCount;
+
 	public void setFrameIndexSafe(int newFrameIndex) {
-		if (sprite == null) return;
-		if (sprite.frames.InRange(newFrameIndex)) sprite.frameIndex = newFrameIndex;
+		if (sprite.frames.InRange(newFrameIndex)) {
+			sprite.frameIndex = newFrameIndex;
+		}
 	}
 
 	public bool useFrameProjs;
@@ -61,6 +83,7 @@ public partial class Actor : GameObject {
 	public bool visible = true;
 	public bool timeSlow;
 	public bool destroyed;
+	public float destroyedOnFrame;
 	public ShaderWrapper? genericShader;
 	public virtual List<ShaderWrapper>? getShaders() { return genericShader != null ? new List<ShaderWrapper> { genericShader } : null; }
 	public float alpha = 1;
@@ -72,7 +95,7 @@ public partial class Actor : GameObject {
 	public Dictionary<string, float> projectileCooldown { get; set; } = new Dictionary<string, float>();
 	public Dictionary<int, float> flinchCooldown { get; set; } = new Dictionary<int, float>();
 
-	public MusicWrapper musicSource;
+	public MusicWrapper? musicSource;
 	public bool checkLadderDown = false;
 	public List<DamageText> damageTexts = new List<DamageText>();
 	//public ShaderWrapper invisibleShader;
@@ -110,11 +133,11 @@ public partial class Actor : GameObject {
 	public float lastNetUpdate;
 
 	public NetActorCreateId netActorCreateId;
-	public Player netOwner;
+	public Player? netOwner;
 	float createRpcTime;
 
 	public bool splashable;
-	private Anim _waterWade;
+	private Anim _waterWade = null!;
 	public Anim waterWade {
 		get {
 			if (_waterWade == null) {
@@ -125,18 +148,89 @@ public partial class Actor : GameObject {
 	}
 
 	public float lastWaterY;
+
+	public float underwaterTime;
+	public float bubbleTime;
+	public float bigBubbleTime;
+	public float waterTime;
+
+	public float timeStopTime;
+
+	public Actor(
+		string spriteName, Point pos, ushort? netId, bool ownedByLocalPlayer, bool dontAddToLevel
+	) {
+		// Intialize sprites as soon as posible to prevent crashes.
+		if (spriteName is not null and not "") {
+			changeSprite(spriteName, true);
+			// Crash if spriteName was provided but does not exist.
+			if (sprite == null) {
+				string typeName = GetType().ToString().Replace("MMXOnline.", "");
+				throw new Exception(
+					"Null sprite at object" + typeName +
+					"with spritename variable \"" + spriteName + "\""
+				);
+			}
+		} else {
+			// Default to empty if no sprite was provided.
+			sprite = Global.sprites["empty"].clone();
+			sprite.name = "null";
+		}
+		// Initalize other stuff.
+		this.pos = pos;
+		prevPos = pos;
+		/*
+		if (Global.debug && Global.serverClient != null && netId != null
+			&& Global.level.getActorByNetId(netId.Value) != null
+		) {
+			string netIdDump = Global.level.getNetIdDump();
+			Helpers.WriteToFile("netIdDump.txt", netIdDump);
+			throw new Exception(
+				"The netId " + netId.ToString() + " (sprite " + spriteName + " ) was already used."
+			);
+		}
+		*/
+		this.netId = netId;
+		this.ownedByLocalPlayer = ownedByLocalPlayer;
+		vel = new Point(0, 0);
+		useGravity = true;
+		frameIndex = 0;
+		frameSpeed = 1;
+		frameTime = 0;
+		name = "";
+		xDir = 1;
+		yDir = 1;
+		grounded = false;
+		zIndex = ++Global.level.autoIncActorZIndex;
+		lastNetUpdate = Global.time;
+
+		if (netId is not null and >= Level.firstNormalNetId) {
+			Global.level.actorsById[netId.Value] = this;
+		}
+
+		if (!dontAddToLevel) {
+			Global.level.addGameObject(this);
+		}
+
+		if (isWading() || isUnderwater()) {
+			waterTime = 10;
+			underwaterTime = 10;
+		}
+	}
+
 	public bool isUnderwater() {
 		float colliderHeight;
 		if (globalCollider == null) colliderHeight = 10;
 		else colliderHeight = globalCollider.shape.maxY - globalCollider.shape.minY;
 
 		// May need a new overridable method to get "visual" height for situations like these
-		if (sprite?.name?.Contains("sigma2_viral_") == true) {
+		if (sprite?.name?.StartsWith("sigma2_viral_") == true) {
 			colliderHeight = 50;
 		}
 
 		foreach (var waterRect in Global.level.waterRects) {
-			if (pos.x > waterRect.x1 && pos.x < waterRect.x2 && pos.y - colliderHeight > waterRect.y1 && pos.y < waterRect.y2) {
+			if (pos.x > waterRect.x1 && pos.x < waterRect.x2 &&
+				pos.y - colliderHeight > waterRect.y1 && pos.y < waterRect.y2
+			) {
 				lastWaterY = waterRect.y1;
 				return true;
 			}
@@ -154,49 +248,6 @@ public partial class Actor : GameObject {
 			}
 		}
 		return false;
-	}
-
-	public float underwaterTime;
-	public float bubbleTime;
-	public float bigBubbleTime;
-	public float waterTime;
-
-	public float timeStopTime;
-
-	public Actor(string spriteName, Point pos, ushort? netId, bool ownedByLocalPlayer, bool dontAddToLevel) {
-		this.pos = pos;
-		prevPos = pos;
-
-		if (Global.debug && Global.serverClient != null && netId != null && Global.level.getActorByNetId(netId.Value) != null) {
-			string netIdDump = Global.level.getNetIdDump();
-			Helpers.WriteToFile("netIdDump.txt", netIdDump);
-			//Global.logToConsole("The netId " + netId.ToString() + " (sprite " + spriteName + " ) was already used", showConsole: true);
-			throw new Exception("The netId " + netId.ToString() + " (sprite " + spriteName + " ) was already used.");
-		}
-
-		this.netId = netId;
-		this.ownedByLocalPlayer = ownedByLocalPlayer;
-		vel = new Point(0, 0);
-		useGravity = true;
-		frameIndex = 0;
-		frameSpeed = 1;
-		frameTime = 0;
-		name = "";
-		xDir = 1;
-		yDir = 1;
-		grounded = false;
-		zIndex = ++Global.level.autoIncActorZIndex;
-		changeSprite(spriteName, true);
-		lastNetUpdate = Global.time;
-
-		if (!dontAddToLevel) {
-			Global.level.addGameObject(this);
-		}
-
-		if (isWading() || isUnderwater()) {
-			waterTime = 10;
-			underwaterTime = 10;
-		}
 	}
 
 	public void createActorRpc(int playerId) {
@@ -228,8 +279,8 @@ public partial class Actor : GameObject {
 	public virtual void changeSprite(string spriteName, bool resetFrame) {
 		string oldSpriteName = sprite?.name ?? "";
 		if (spriteName == null) return;
-		if (sprite != null) {
-			if (sprite.name == spriteName) {	
+		if (sprite != null && (this is Character || !resetFrame)) {
+			if (sprite.name == spriteName) {
 				return;
 			}
 		}
@@ -240,8 +291,8 @@ public partial class Actor : GameObject {
 			Global.level.removeFromGridFast(this);
 		}
 		int oldFrameIndex = sprite?.frameIndex ?? 0;
-		float oldFrameTime = sprite?.frameTime ?? 0;
-		float oldAnimTime = sprite?.animTime ?? 0;
+		float oldFrameTime = sprite?.frameSeconds ?? 0;
+		float oldAnimTime = sprite?.animSeconds ?? 0;
 
 		sprite = Global.sprites[spriteName].clone();
 
@@ -262,8 +313,8 @@ public partial class Actor : GameObject {
 			animTime = 0;
 		} else {
 			frameIndex = oldFrameIndex;
-			frameTime = oldFrameTime;
-			animTime = oldAnimTime;
+			frameSeconds = oldFrameTime;
+			animSeconds = oldAnimTime;
 		}
 
 		if (frameIndex >= sprite.frames.Count) {
@@ -279,14 +330,14 @@ public partial class Actor : GameObject {
 				Global.level.delayedActions.Add(new DelayedAction(() => {
 					playOverrideVoice(spriteName);
 				}, Player.maxReadyTime));
-			} else if ((spriteName != "sigma_die" && spriteName != "sigma2_die" && spriteName != "sigma3_die") || (visible && (this as Character)?.isHyperSigmaBS?.getValue() != true)) {
+			} else if ((spriteName != "sigma_die" && spriteName != "sigma2_die" && spriteName != "sigma3_die") || visible) {
 				playOverrideVoice(spriteName);
 			}
 		}
 	}
 
 	public void playOverrideVoice(string spriteName) {
-		Character chr = this as Character;
+		Character? chr = this as Character;
 		int charNum = chr != null ? chr.player.charNum : 4;
 		spriteName = spriteName.Replace("_na_", "_")
 							   .Replace("_bald_", "_")
@@ -342,11 +393,7 @@ public partial class Actor : GameObject {
 		this.zIndex = val;
 	}
 
-	public Frame currentFrame {
-		get {
-			return sprite?.getCurrentFrame();
-		}
-	}
+	public Frame currentFrame => sprite.getCurrentFrame();
 
 	public float framePercent {
 		get {
@@ -354,7 +401,7 @@ public partial class Actor : GameObject {
 			foreach (var frame in sprite.frames) {
 				entireDuration += frame.duration;
 			}
-			return animTime / entireDuration;
+			return animSeconds / entireDuration;
 		}
 	}
 
@@ -372,7 +419,7 @@ public partial class Actor : GameObject {
 		if (!useFrameProjs) {
 			return;
 		}
-		if (sprite == null) {
+		if (sprite.name == "null") {
 			return;
 		}
 		// Frame-based hitbox projectile section
@@ -646,13 +693,17 @@ public partial class Actor : GameObject {
 				}
 				yDist *= yMod;
 
-				CollideData collideData = Global.level.checkCollisionActor(this, 0, yDist, checkPlatforms: true);
+				CollideData? collideData = Global.level.checkCollisionActor(this, 0, yDist, checkPlatforms: true);
 
 				var hitActor = collideData?.gameObject as Actor;
 				bool isPlatform = false;
 				bool tooLowOnPlatform = false;
 				if (hitActor?.isPlatform == true) {
-					bool dropThruWolfPaw = hitActor is WolfSigmaHand && chr != null && !chr.grounded && chr.player.input.isHeld(Control.Down, chr.player);
+					bool dropThruWolfPaw = (
+						hitActor is WolfSigmaHand &&
+						chr != null && !chr.grounded &&
+						chr.player.input.isHeld(Control.Down, chr.player)
+					);
 					if (!dropThruWolfPaw) {
 						isPlatform = true;
 						if (pos.y > hitActor.getTopY() + 10) {
@@ -789,7 +840,7 @@ public partial class Actor : GameObject {
 				if (trigger.gameObject is GenericMeleeProj && trigger.otherCollider.flag == (int)HitboxFlag.None &&
 					(trigger.otherCollider.originalSprite == "sigma_block" || trigger.otherCollider.originalSprite == "zero_block")) {
 					return 0;
-				} else if (trigger.otherCollider.originalSprite?.StartsWith("sigma3_kaiser") == true && trigger.otherCollider.name == "head") {
+				} else if (trigger.otherCollider.originalSprite?.StartsWith("kaisersigma") == true && trigger.otherCollider.name == "head") {
 					return 0;
 				} else if (trigger.gameObject is GenericMeleeProj && trigger.otherCollider.flag == (int)HitboxFlag.None && trigger.otherCollider.originalSprite == "drdoppler_absorb") {
 					return 0;
@@ -834,6 +885,9 @@ public partial class Actor : GameObject {
 			cy = 1;
 		}
 
+		if (collider == null) {
+			return pos.y;
+		}
 		return pos.y - (collider.shape.getRect().h() * cy);
 	}
 
@@ -861,7 +915,7 @@ public partial class Actor : GameObject {
 			if (character.isCStingInvisibleGraphics() && this is MegamanX mmx && mmx.cStingPaletteTime % 3 == 0) {
 				return false;
 			}
-			if (character.isInvulnBS.getValue()) {
+			if (character.invulnTime > 0) {
 				int mod10 = Global.level.frameCount % 4;
 				if (mod10 < 2) return false;
 			}
@@ -875,7 +929,10 @@ public partial class Actor : GameObject {
 		return true;
 	}
 
-	public void getKillerAndAssister(Player ownPlayer, ref Player killer, ref Player assister, ref int? weaponIndex, ref int? assisterProjId, ref int? assisterWeaponId) {
+	public void getKillerAndAssister(
+		Player ownPlayer, ref Player? killer, ref Player? assister, ref int? weaponIndex,
+		ref int? assisterProjId, ref int? assisterWeaponId
+	) {
 		if (damageHistory.Count > 0) {
 			for (int i = damageHistory.Count - 1; i >= 0; i--) {
 				var lastAttacker = damageHistory[i];
@@ -1071,8 +1128,8 @@ public partial class Actor : GameObject {
 	}
 
 	public virtual bool shouldRender(float x, float y) {
-		// Don't draw things without sprites.
-		if (sprite == null || currentFrame == null) {
+		// Don't draw things without sprites or with the "null" sprite.
+		if (sprite.name == "null" || currentFrame == null) {
 			return false;
 		}
 		// Don't draw actors out of the screen for optimization
@@ -1138,7 +1195,7 @@ public partial class Actor : GameObject {
 	}
 
 	public void addDamageTextHelper(
-		Player attacker, float damage, float maxHealth, bool sendRpc
+		Player? attacker, float damage, float maxHealth, bool sendRpc
 	) {
 		if (attacker == null) return;
 
@@ -1262,7 +1319,7 @@ public partial class Actor : GameObject {
 		}
 	}
 
-	//Optionally take in a sprite to draw when destroyed
+	// Optionally take in a sprite to draw when destroyed
 	public virtual void destroySelf(
 		string spriteName = "", string fadeSound = "",
 		bool disableRpc = false, bool doRpcEvenIfNotOwned = false,
@@ -1275,6 +1332,15 @@ public partial class Actor : GameObject {
 
 		if (!destroyed) {
 			destroyed = true;
+			destroyedOnFrame = Global.frameCount;
+			if (netId is not null and >= Level.firstNormalNetId &&
+				Global.level.actorsById.ContainsKey(netId.Value)
+			) {
+				if (Global.level.actorsById[netId.Value] == this) {
+					Global.level.actorsById.Remove(netId.Value);
+					Global.level.destroyedActorsById[netId.Value] = this;
+				}
+			}
 			onDestroy();
 		} else {
 			return;
@@ -1373,9 +1439,11 @@ public partial class Actor : GameObject {
 		return new Point(xPos, yPos);
 	}
 
-	public SoundWrapper playSound(string soundKey, bool forcePlay = false, bool sendRpc = false) {
+	public SoundWrapper? playSound(string soundKey, bool forcePlay = false, bool sendRpc = false) {
 		soundKey = soundKey.ToLowerInvariant();
-		if (!Global.soundBuffers.ContainsKey(soundKey)) return null;
+		if (!Global.soundBuffers.ContainsKey(soundKey)) {
+			throw new Exception($"Attempted playing missing sound with name \"{soundKey}\"");
+		}
 		return playSound(Global.soundBuffers[soundKey], forcePlay: forcePlay, sendRpc: sendRpc);
 	}
 
@@ -1402,9 +1470,11 @@ public partial class Actor : GameObject {
 		return new SoundWrapper(soundBuffer, this);
 	}
 
-	public SoundWrapper playSound(SoundBufferWrapper soundBuffer, bool forcePlay = false, bool sendRpc = false) {
+	public SoundWrapper? playSound(SoundBufferWrapper soundBuffer, bool forcePlay = false, bool sendRpc = false) {
 		var recentClipCount = Global.level.recentClipCount;
-		if (recentClipCount.ContainsKey(soundBuffer.soundKey) && recentClipCount[soundBuffer.soundKey].Count > 1) {
+		if (recentClipCount.ContainsKey(soundBuffer.soundKey) &&
+			recentClipCount[soundBuffer.soundKey].Count > 1
+		) {
 			if (!forcePlay) {
 				return null;
 			}
@@ -1556,8 +1626,8 @@ public partial class Actor : GameObject {
 	}
 
 	public Point getFirstPOIOrDefault(string tag, int? frameIndex = null) {
-		Frame frame = frameIndex != null ? sprite?.frames?[frameIndex.Value] : sprite?.getCurrentFrame();
-		if (frame?.POIs?.Count > 0) {
+		Frame frame = frameIndex != null ? sprite.frames[frameIndex.Value] : sprite.getCurrentFrame();
+		if (frame.POIs?.Count > 0) {
 			int poiIndex = frame.POITags.FindIndex(t => t == tag);
 			if (poiIndex >= 0) {
 				Point poi = frame.POIs[poiIndex];
@@ -1669,7 +1739,7 @@ public partial class Actor : GameObject {
 		DrawWrappers.DrawRect(pos.x - 46 + sx, pos.y + 15 - width + sy, pos.x - 43 + sx, pos.y + 15 + sy, true, color, 0, ZIndex.HUD - 1);
 	}
 
-	public CollideData getHitWall(float x, float y) {
+	public CollideData? getHitWall(float x, float y) {
 		var hits = Global.level.checkCollisionsActor(this, x, y, checkPlatforms: true);
 		var bestWall = hits.FirstOrDefault(h => h.gameObject is Wall wall && !wall.collider.isClimbable);
 		if (bestWall != null) return bestWall;
@@ -1704,5 +1774,45 @@ public partial class Actor : GameObject {
 
 	public virtual float getGravity() {
 		return Global.level.gravity * gravityModifier * gravityWellModifier;
+	}
+
+	public Actor[] getCloseActors(
+		int distance, bool isRequesterAI = false,
+		bool checkWalls = false, bool includeAllies = false
+	) {
+		List<Actor> closeActors = new();
+		int halfDist = MathInt.Floor(distance / 2f);
+
+		Point checkPos = new Point(MathF.Round(pos.x), MathF.Round(pos.y));
+		Shape shape = Rect.createFromWH(
+			pos.x - halfDist, pos.y - halfDist,
+			halfDist, halfDist
+		).getShape();
+		var hits = Global.level.checkCollisionsShape(shape, null);
+		int alliance = -1;
+		if (includeAllies) {
+			alliance = this switch {
+				Character selfChar => selfChar.player.alliance,
+				Projectile selfProj => selfProj.damager.owner.alliance,
+				Maverick selfMvrk => selfMvrk.player.alliance,
+				_ => -1
+			};
+		}
+		foreach (CollideData hit in hits) {
+			if (hit.gameObject is not Actor actor || actor == this) {
+				continue;
+			}
+			if (!includeAllies && alliance != -1) {
+				if (actor is Character character && character.player.alliance == alliance ||
+					actor is Projectile proj && proj.damager?.owner.alliance == alliance ||
+					actor is Maverick maverick && maverick.player.alliance == alliance ||
+					actor is DarkHoldProj
+				) {
+					continue;
+				}
+			}
+			closeActors.Add(actor);
+		}
+		return closeActors.ToArray();
 	}
 }

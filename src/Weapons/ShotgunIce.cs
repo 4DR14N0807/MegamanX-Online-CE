@@ -155,6 +155,11 @@ public class ShotgunIceProjCharged : Projectile {
 		if (rpc) {
 			rpcCreate(pos, player, netProjId, xDir);
 		}
+
+		isOwnerLinked = true;
+		if (player.character != null) {
+			owningActor = player.character;
+		}
 	}
 
 	public override void update() {
@@ -220,9 +225,9 @@ public class ShotgunIceProjSled : Projectile {
 				vel.x = xDir * 175;
 			}
 
-			animTime += Global.spf;
-			if (animTime > 0.15) {
-				animTime = 0;
+			animSeconds += Global.spf;
+			if (animSeconds > 0.15) {
+				animSeconds = 0;
 				if (grounded) {
 					new Anim(pos, "sled_scrape_part", Math.Sign(vel.x), null, true);
 				}

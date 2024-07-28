@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace MMXOnline;
@@ -8,7 +9,7 @@ public class RideChaser : Actor, IDamagable {
 	public float maxHealth = 24;
 	public float healAmount = 0;
 	public float healTime = 0;
-	public Character character;
+	public Character? character;
 	public float selfDestructTime;
 	public float maxSelfDestructTime = 10;
 	public Anim hawkElec;
@@ -89,7 +90,7 @@ public class RideChaser : Actor, IDamagable {
 
 		if (pos.y > Global.level.killY) {
 			incPos(new Point(0, 50));
-			applyDamage(null, null, Damager.envKillDamage, null);
+			applyDamage(Damager.envKillDamage, null, null, null, null);
 		}
 
 		Helpers.decrementTime(ref enterCooldown);
@@ -199,8 +200,8 @@ public class RideChaser : Actor, IDamagable {
 					character.playSound("hurt", sendRpc: true);
 					character.playSound("rcCrash", sendRpc: true);
 					character.shakeCamera(sendRpc: true);
-					character.applyDamage(null, null, 4, null);
-					applyDamage(null, null, 8, (int)ProjIds.RideChaserCrash);
+					character.applyDamage(4, null, null, null, null);
+					applyDamage(8, null, null, null, (int)ProjIds.RideChaserCrash);
 					bounceSpeed = speed * 0.75f;
 				}
 				speed = 0;
@@ -517,7 +518,7 @@ public class RideChaser : Actor, IDamagable {
 		chr.changeState(new InRideChaser(), true);
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 		if (!ownedByLocalPlayer) return;
 		if (Global.level.isRace() && damage != Damager.envKillDamage && projId != (int)ProjIds.RideChaserCrash) {
 			damage = 0.25f;
@@ -627,6 +628,32 @@ public class RideChaser : Actor, IDamagable {
 			RPC.creditPlayerKillVehicle.sendRpc(killer, assister, this, weaponIndex);
 		}
 	}
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = new();
+
+		customData.Add((byte)drawState);
+		// 1 means riding it, 0 means not.
+		customData.Add((byte)(character != null ? 1 : 0)); 
+		customData.Add((byte)(neutralId));
+		customData.Add((byte)MathF.Ceiling(health));
+
+		return customData;
+	}
+
+	public override void updateCustomActorNetData(byte[] data) {
+		drawState = data[0];
+		int isOwnerRiding = data[1];
+
+		if (isOwnerRiding == 0) {
+			character = null;
+		} else if (isOwnerRiding == 1) {
+			character = netOwner?.character;
+		}
+
+		neutralId = data[2];
+		health = data[3];
+	}
 }
 
 public class RCProj : Projectile {
@@ -663,7 +690,7 @@ public class InRideChaser : CharState {
 
 		if (character.rideChaser == null || character.rideChaser.destroyed) {
 			if (Global.level.isRace()) {
-				character.applyDamage(null, null, Damager.envKillDamage, null);
+				character.applyDamage(Damager.envKillDamage, null, null, null, null);
 			} else {
 				character.changeToIdleOrFall();
 			}

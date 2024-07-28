@@ -104,12 +104,27 @@ public class LevelData {
 	public string backgroundShaderImage;
 	public bool supportsVehicles;
 	public bool raceOnly;
+	public int customSize = -1;
 
 	public LevelData() {
 	}
 
-	public LevelData(string levelJsonStr, bool isCustomMap) {
+	public LevelData(string levelJsonStr, string levelIniStr, bool isCustomMap) {
 		levelJson = JsonConvert.DeserializeObject<dynamic>(levelJsonStr);
+		if (levelIniStr != "") {
+			dynamic levelIni = IniParser.ParseText(levelIniStr);
+			if (levelIni["MapData"]["size"] is String customSizeStr) {
+				customSize = customSizeStr.ToLowerInvariant() switch {
+					"training" => 0,
+					"1v1" => 1,
+					"small" => 2,
+					"medium" => 3,
+					"large" => 4,
+					"xl" or "collosal" => 5,
+					_=> -1 
+				};
+			}
+		}
 		name = levelJson.name;
 		path = levelJson.path;
 		width = levelJson.width;
@@ -216,11 +231,6 @@ public class LevelData {
 			maxPlayers = 4;
 			supportedGameModesSet.Add(GameMode.Elimination);
 			supportedGameModesSet.Add(GameMode.TeamElimination);
-		} else if (isMedium()) {
-			//maxPlayers = 4;
-			maxPlayers = 12;
-			supportedGameModesSet.Add(GameMode.Deathmatch);
-			supportedGameModesSet.Add(GameMode.TeamDeathmatch);
 		} else {
 			maxPlayers = Server.maxPlayerCap;
 			supportedGameModesSet.Add(GameMode.Deathmatch);
@@ -497,16 +507,45 @@ public class LevelData {
 		return string.Join('/', pieces);
 	}
 
-	public bool is1v1() {
-		return name.EndsWith("1v1");
+	public bool isTraining() {
+		if (customSize != -1) {
+			return customSize == 0;
+		}
+		return name == "training" || name.EndsWith("_training");
 	}
 
-	public bool isTraining() {
-		return name == "training";
+	public bool is1v1() {
+		if (customSize != -1) {
+			return customSize == 1;
+		}
+		return name.EndsWith("_1v1");
+	}
+
+	public bool isSmall() {
+		if (customSize != -1) {
+			return customSize == 2;
+		}
+		if (name is "nodetest" or "airport_1v1" or "sigma1_1v1") {
+			return true;
+		}
+		return name.EndsWith("_small");
 	}
 
 	public bool isMedium() {
+		if (customSize != -1) {
+			return customSize == 3;
+		}
 		return name.EndsWith("_md");
+	}
+
+	public bool isCollosal() {
+		if (customSize != -1) {
+			return customSize == 5;
+		}
+		if (name is "sigma1" or "shipyard" or "giantdam" or "gallery") {
+			return true;
+		}
+		return name.EndsWith("_collosal") || name.EndsWith("_xl");
 	}
 
 	// TODO: Add this info to the level format themsleves
@@ -538,8 +577,8 @@ public class LevelData {
 		{ "robotjunkyard", "morphMoth" },
 		{ "volcaniczone", "flameStag" },
 		{ "weathercontrol", "wireSponge" },
-		{ "xhunter1", "counterHunter2" },
-		{ "xhunter2", "counterHunter1" },
+		{ "xhunter1", "counterHunter1" },
+		{ "xhunter2", "counterHunter2" },
 		// X3 stuff.
 		{ "aircraftcarrier", "gravityBeetle" },
 		{ "dopplerlab", "dopplerLab" },
@@ -555,8 +594,8 @@ public class LevelData {
 		{ "weaponsfactory", "blastHornet" },
 
 		// Alt music.
-		{ "dopplerlab_1v1", "goliath" },
-		{ "zerovirus_1v1", "XvsZeroV1_megasfc" },
+		{ "dopplerlab_1v1", "fortressBoss_X3" },
+		{ "zerovirus_1v1", "XvsZeroV2_megasfc" },
 		{ "centralcomputer_1v1", "boss_X2" },
 		{ "sigma4_1v1", "boss_X1" },
 
@@ -591,7 +630,7 @@ public class LevelData {
 			name.Contains("desertbase") ||
 			name.Contains("weathercontrol")
 		) {
-			return "win_x2";
+			return "stageClear_X2";
 		}
 		if (name.Contains("hunterbase") ||
 			name.Contains("giantdam") ||
@@ -604,17 +643,17 @@ public class LevelData {
 			name.Contains("safaripark") ||
 			name.Contains("dopplerlab")
 		) {
-			return "win_x3";
+			return "stageClear_X3";
 		}
 		if (isCustomMap) {
 			return Helpers.randomRange(0, 2) switch {
-				1 => "win_x2",
-				2 => "win_x3",
-				_ => "win"
+				1 => "stageClear_X2",
+				2 => "stageClear_X3",
+				_ => "stageClear_X1"
 			};
 		}
 
-		return "win";
+		return "stageClear_X1";
 	}
 
 	public Texture getMapThumbnail() {
@@ -634,5 +673,42 @@ public class LevelData {
 			return false;
 		}
 		return supportsMirrored && !mirroredOnly;
+	}
+	public string getLooseTheme() {
+		if (name.Contains("xhunter1") ||
+			name.Contains("deepseabase") ||
+			name.Contains("maverickfactory") ||
+			name.Contains("robotjunkyard") ||
+			name.Contains("volcaniczone") ||
+			name.Contains("dinosaurtank") ||
+			name.Contains("centralcomputer") ||
+			name.Contains("crystalmine") ||
+			name.Contains("desertbase") ||
+			name.Contains("weathercontrol")
+		) {
+			return "password_X2";
+		}
+		if (name.Contains("hunterbase") ||
+			name.Contains("giantdam") ||
+			name.Contains("weaponsfactory") ||
+			name.Contains("frozentown") ||
+			name.Contains("aircraftcarrier") ||
+			name.Contains("powercenter") ||
+			name.Contains("shipyard") ||
+			name.Contains("quarry") ||
+			name.Contains("safaripark") ||
+			name.Contains("dopplerlab")
+		) {
+			return "password_X3";
+		}
+		if (isCustomMap) {
+			return Helpers.randomRange(0, 2) switch {
+				1 => "password_X2",
+				2 => "password_X3",
+				_ => "password_X1"
+			};
+		}
+
+		return "password_X1";
 	}
 }

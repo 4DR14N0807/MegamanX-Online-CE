@@ -17,20 +17,20 @@ namespace MMXOnline;
 public partial class Global {
 	public static decimal version = 20m;
 	public static string versionName = "Revision 20";
-	public static string subVersionName = "Alpha 12";
+	public static string subVersionName = "Alpha 12 RC 1";
 	public static string subVersionShortName = "a12";
 
 	// THIS VALUE MUST ALWAYS MANUALLY BE SET AFTER UPDATING ASSETS BEFORE BUILDING A RELEASE BUILD.
 	// Obtain it by pressing F1 in main menu.
 	// This step could be automated as future improvement in build scripts.
-	private const string assetChecksum = "F263FF1D269C91905C7D757635331974";
+	private const string assetChecksum = "AB831F535E1DEE1A7A88AA694CD1E561";
 
 	// For forks/mods of the game, add a prefix here so that different forks
 	// don't conflict with each other or the base game
 	public const string checksumPrefix = "[Community Edition]";
 	// Use this to make sure the checksum varies.
 	// Better to use together with "checksumPrefix" and be diferent from it.
-	public const string checksumPrefix2 = "A12-RC1-Devtest";
+	public const string checksumPrefix2 = "CE-A12-Devtest";
 	// Final checksum key.
 	public const string checksumKey = checksumPrefix + " " + checksumPrefix2;
 	// For displaying the name of the mod in the version string.
@@ -86,7 +86,7 @@ public partial class Global {
 	public static int? quickStartMechNum = 0;
 	public static bool? quickStartVileMK2 = false;
 	public static bool? quickStartVileMK5 = false;
-	public static string overrideSpawnPoint = null;//"Spawn Point3";
+	public static string? overrideSpawnPoint = null;//"Spawn Point3";
 
 	// Online quickstart
 	public static bool quickStartOnline = false;
@@ -223,7 +223,7 @@ public partial class Global {
 			//Global.showAIDebug = !Global.showAIDebug;
 		}
 		if (Global.input.isPressed(Key.F4)) {
-			Global.level?.mainPlayer?.forceKill();
+			Global.level.mainPlayer?.forceKill();
 			//Global.level?.mainPlayer?.character?.setHurt(1, Global.defFlinch);
 		}
 		if (Global.input.isPressed(Key.F5)) {
@@ -414,8 +414,8 @@ public partial class Global {
 
 			{ "drdoppler_jump", "drdoppler_exit" },
 
-			{ "sigma3_kaiser_idle_body", "sigma3_kaiser_taunt_body" },
-			{ "sigma3_kaiser_empty", "sigma3_kaiser_empty_fadeout" }
+			{ "kaisersigma_idle_body", "kaisersigma_taunt_body" },
+			{ "kaisersigma_empty", "kaisersigma_empty_fadeout" }
 		};
 
 	private static MatchmakingQuerier _matchmakingQuerier;
@@ -527,11 +527,11 @@ public partial class Global {
 
 	public static int defaultThresholdPing = 200;
 	public static Level level;
-	public static ServerClient serverClient;
-	public static Server localServer;
+	public static ServerClient? serverClient;
+	public static Server? localServer;
 	public static bool isOffline { get { return serverClient == null; } }
 	public static bool isHost { get { return level != null && level.isHost; } }
-	public static LeaveMatchSignal leaveMatchSignal;
+	public static LeaveMatchSignal? leaveMatchSignal;
 	public const int basePort = 14242;
 	public const int clientPort = 14240;
 	public static bool firstTimeVersionCheck = false;

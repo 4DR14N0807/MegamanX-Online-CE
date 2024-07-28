@@ -133,8 +133,8 @@ public class Maverick : Actor, IDamagable {
 		this.player = player;
 		this.xDir = xDir;
 
-		spriteToCollider.Add("enter", null);
-		spriteToCollider.Add("exit", null);
+		spriteToCollider["enter"] = null;
+		spriteToCollider["exit"] = null;
 
 		Rect idleRect = Global.sprites[getMaverickPrefix() + "_idle"].frames[0].rect;
 		width = Math.Min(idleRect.w() - 20, maxWidth);
@@ -289,7 +289,7 @@ public class Maverick : Actor, IDamagable {
 
 		if (pos.y > Global.level.killY && state is not MEnter && state is not MExit) {
 			incPos(new Point(0, 50));
-			applyDamage(null, null, Damager.envKillDamage, null);
+			applyDamage(Damager.envKillDamage, player, this, null, null);
 		}
 
 		if (autoExit) {
@@ -527,6 +527,9 @@ public class Maverick : Actor, IDamagable {
 
 	// For terrain collision.
 	public override Collider getTerrainCollider() {
+		if (physicsCollider == null) {
+			return null;
+		}
 		float hSize = Math.Min(height, 30);
 		float wSize = width;
 		Rect? physicsRect = physicsCollider?.shape.getRect();
@@ -653,7 +656,7 @@ public class Maverick : Actor, IDamagable {
 		changeSprite(spriteName, resetFrame);
 	}
 
-	public void applyDamage(Player owner, int? weaponIndex, float damage, int? projId) {
+	public void applyDamage(float damage, Player? owner, Actor? actor, int? weaponIndex, int? projId) {
 		if (this is FakeZero fz && fz.state is FakeZeroGuardState) {
 			ammo += damage;
 			if (ammo > 32) ammo = 32;
@@ -1075,5 +1078,23 @@ public class Maverick : Actor, IDamagable {
 			if (state?.wasFlying == true) changeState(new MFly(transitionSprite));
 			else if (state is not MFall) changeState(new MFall(transitionSprite));
 		}
+	}
+
+	public const int CustomNetDataLength = 3;
+
+	public override List<byte> getCustomActorNetData() {
+		List<byte> customData = new();
+
+		customData.Add((byte)MathF.Ceiling(alpha * 100));
+		customData.Add((byte)MathF.Ceiling(health));
+		customData.Add((byte)MathF.Ceiling(invulnTime * 20));
+
+		return customData;
+	}
+
+	public override void updateCustomActorNetData(byte[] data) {
+		alpha = data[0] / 100f;
+		health = data[1];
+		invulnTime = data[2] / 20f;
 	}
 }

@@ -18,9 +18,9 @@ public class CrystalSnail : Maverick {
 	) {
 		stateCooldowns.Add(typeof(CSnailShootState), new MaverickStateCooldown(false, false, 0.75f));
 
-		spriteToCollider.Add("shell", getShellCollider());
-		spriteToCollider.Add("shell_spin", getShellCollider());
-		spriteToCollider.Add("shell_dash", getShellCollider());
+		spriteToCollider["shell"] = getShellCollider();
+		spriteToCollider["shell_spin"] = getShellCollider();
+		spriteToCollider["shell_dash"] = getShellCollider();
 
 		weapon = getWeapon();
 
@@ -180,10 +180,10 @@ public class CrystalSnail : Maverick {
 public class CrystalSnailShell : Actor {
 	const float leeway = 500;
 	int bounces;
-	CrystalSnail cs;
+	CrystalSnail? cs;
 
 	public CrystalSnailShell(
-		Point pos, int xDir, CrystalSnail cs, Player owner,
+		Point pos, int xDir, CrystalSnail? cs, Player owner,
 		ushort? netId, bool sendRpc = false, bool ownedByLocalPlayer = true
 	) : base(
 		"csnail_shell_empty", pos, netId, ownedByLocalPlayer, false
