@@ -274,6 +274,14 @@ public partial class Character : Actor, IDamagable {
 		changeState(new DarkHoldState(this, darkHoldTime), true);
 	}
 
+	public void addIceSlasherTime(float iSlasherTime, Player attacker) {
+		if (!ownedByLocalPlayer) return;
+		if (isInvulnerable()) return;
+		if (isVaccinated()) return;
+
+		changeState(new ISlasherFreeze(this, iSlasherTime), true);
+	}
+
 	public void addAcidTime(Player attacker, float time) {
 		if (!ownedByLocalPlayer) return;
 		if ((this as MegamanX)?.chargedRollingShieldProj != null) return;

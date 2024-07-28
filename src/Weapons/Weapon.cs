@@ -160,6 +160,7 @@ public class Weapon {
 				new GravityWell(),
 				new FrostShield(),
 				new TunnelFang(),
+				new IceSlasher(),
 			};
 	}
 

@@ -429,6 +429,8 @@ public class Damager {
 				character.addDarkHoldTime(4, owner);
 			} else if (projId == (int)ProjIds.MagnaCTail) {
 				character.addInfectedTime(owner, 4f);
+			} else if (projId == (int)ProjIds.IceSlasher) {
+				character.addIceSlasherTime(4, owner);
 			}
 
 			if ((owner?.character as Zero)?.isViral == true) {

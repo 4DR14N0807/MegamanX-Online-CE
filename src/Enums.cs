@@ -74,6 +74,7 @@ public enum WeaponIds {
 	GravityWell,
 	FrostShield,
 	TunnelFang,
+	IceSlasher,
 	GigaCrush,
 	ItemTracer,
 	XSaber,
@@ -288,7 +289,9 @@ public enum ProjIds {
 	Buster3,
 	Buster4,
 	BusterUnpo,
+	BusterX3Proj1,
 	BusterX3Proj2,
+	BusterX3Proj3,
 	BusterX3Plasma,
 	BusterX3PlasmaHit,
 	Torpedo,
@@ -696,6 +699,9 @@ public enum ProjIds {
 	DZBuster4,
 	DZMelee,
 	DZHadangeki,
+
+	//extra stuff
+	IceSlasher,
 
 	// Special damage types.
 	SelfDmg = 30000,
