@@ -1091,7 +1091,7 @@ public class WallSlide : CharState {
 			return;
 		}
 		*/
-		if (player.isSigma && player.input.isPressed(Control.Special1, player) && character.flag == null) {
+		if (character is CmdSigma && player.input.isPressed(Control.Special1, player) && character.flag == null) {
 			int yDir = player.input.isHeld(Control.Down, player) ? 1 : -1;
 			character.changeState(new SigmaWallDashState(yDir, false), true);
 			return;
@@ -1587,6 +1587,7 @@ public class GenericGrabbedState : CharState {
 
 	public override void update() {
 		base.update();
+		if (!character.ownedByLocalPlayer) { return; }
 		if (customUpdate) return;
 
 		if (grabber.sprite.name.EndsWith(grabSpriteSuffix) == true || (
@@ -1657,7 +1658,7 @@ public class GenericGrabbedState : CharState {
 }
 
 public class NetLimbo : CharState {
-	public NetLimbo() : base("idle", "", "", "") {
+	public NetLimbo() : base("not_a_real_sprite") {
 
 	}
 }

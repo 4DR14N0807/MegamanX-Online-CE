@@ -44,7 +44,7 @@ public class ToxicSeahorse : Maverick {
 		}
 
 		if (aiBehavior == MaverickAIBehavior.Control) {
-			if (state is MIdle || state is MRun) {
+			if (state is MIdle or MRun or MLand) {
 				if (input.isPressed(Control.Shoot, player)) {
 					changeState(getShootState(false));
 				} else if (input.isPressed(Control.Special1, player)) {
@@ -278,10 +278,10 @@ public class TSeahorseTeleportState : MaverickState {
 		base.update();
 
 		if (state == 0) {
-			if (maverick.frameIndex == maverick.sprite.frames.Count - 1) {
+			if (maverick.frameIndex == maverick.sprite.totalFrameNum - 1) {
 				state = 1;
 				stateTime = 0;
-				maverick.frameIndex = maverick.sprite.frames.Count - 1;
+				maverick.frameIndex = maverick.sprite.totalFrameNum - 1;
 				maverick.frameSpeed = 0;
 			}
 		} else if (state == 1) {

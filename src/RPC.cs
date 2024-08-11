@@ -1685,7 +1685,10 @@ public class RPCCommandGrabPlayer : RPC {
 		netDeliveryMethod = NetDeliveryMethod.ReliableOrdered;
 	}
 
-	public void maverickGrabCode(Maverick grabber, Character victimChar, CharState grabbedState, bool isDefenderFavored, MaverickState? optionalGrabberState = null) {
+	public void maverickGrabCode(
+		Maverick grabber, Character victimChar,
+		CharState grabbedState, bool isDefenderFavored, MaverickState? optionalGrabberState = null
+	) {
 		if (grabber == null || victimChar == null) return;
 		if (!victimChar.canBeGrabbed()) return;
 
@@ -2131,7 +2134,7 @@ public class RPCCreditPlayerKillVehicle : RPC {
 		}
 	}
 
-	public void sendRpc(Player killer, Player assister, Actor victim, int? weaponIndex) {
+	public void sendRpc(Player? killer, Player? assister, Actor victim, int? weaponIndex) {
 		if (killer == null) return;
 		if (victim?.netId == null) return;
 

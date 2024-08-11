@@ -32,7 +32,7 @@ public class NeoSigma : BaseSigma {
 			if (isAnimOver() && charState != null && charState is not SigmaClawState) {
 				changeSprite(getSprite(charState.defaultSprite), true);
 				if (charState is WallSlide && sprite != null) {
-					frameIndex = sprite.frames.Count - 1;
+					frameIndex = sprite.totalFrameNum - 1;
 				}
 			} else if (grounded && sprite?.name != "sigma2_attack" && sprite?.name != "sigma2_attack2") {
 				changeSprite("sigma2_attack", false);
@@ -90,10 +90,10 @@ public class NeoSigma : BaseSigma {
 			return true;
 		}
 		if (grounded && player.input.isPressed(Control.Special1, player) &&
-			flag == null && player.sigmaAmmo >= 16
+			flag == null && player.sigmaAmmo >= 14
 		) {
-			if (player.sigmaAmmo < 32) {
-				player.sigmaAmmo -= 16;
+			if (player.sigmaAmmo < 28) {
+				player.sigmaAmmo -= 14;
 				changeState(new SigmaElectricBallState(), true);
 				return true;
 			} else {
@@ -166,7 +166,7 @@ public class NeoSigma : BaseSigma {
 	}
 
 	public override bool canAddAmmo() {
-		return (player.sigmaAmmo < 32);
+		return (player.sigmaAmmo < 28);
 	}
 
 	public override List<byte> getCustomActorNetData() {

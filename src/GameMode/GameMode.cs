@@ -656,18 +656,18 @@ public class GameMode {
 					drawZeroGigaCooldown(zero.gigaAttack, y: yStart);
 					xStart += 15;
 				}
-				if (zero.swingCooldown > 0 && zero.isGenmuZero || zero.genmuCooldown > 0) {
-					float cooldown = 1 - Helpers.progress(zero.genmuCooldown, 120);
-					if (zero.swingCooldown > zero.genmuCooldown) {
-						cooldown = 1 - Helpers.progress(zero.swingCooldown, 60);
+				if (zero.hadangekiCooldown > 0 && zero.isGenmuZero || zero.genmureiCooldown > 0) {
+					float cooldown = 1 - Helpers.progress(zero.genmureiCooldown, 120);
+					if (zero.hadangekiCooldown > zero.genmureiCooldown) {
+						cooldown = 1 - Helpers.progress(zero.hadangekiCooldown, 60);
 					}
 					drawGigaWeaponCooldown(102, cooldown, xStart, yStart);
 					xStart += 15;
 				}
-				if (zero.swingCooldown > 0 || zero.genmuCooldown > 60) {
-					float cooldown = 1 - Helpers.progress(zero.swingCooldown, 60);
-					if (zero.genmuCooldown - 1 > zero.swingCooldown) {
-						cooldown = 1 - Helpers.progress(zero.genmuCooldown - 60, 1);
+				if (zero.hadangekiCooldown > 0 || zero.genmureiCooldown > 60) {
+					float cooldown = 1 - Helpers.progress(zero.hadangekiCooldown, 60);
+					if (zero.genmureiCooldown - 1 > zero.hadangekiCooldown) {
+						cooldown = 1 - Helpers.progress(zero.genmureiCooldown - 60, 1);
 					}
 					drawGigaWeaponCooldown(zero.isGenmuZero ? 48 : 102, cooldown, xStart, yStart);
 					xStart += 15;
@@ -688,8 +688,8 @@ public class GameMode {
 					drawZeroGigaCooldown(punchyZero.gigaAttack, xStart, yStart);
 					xStart += 15;
 				}
-				if (punchyZero.swingCooldown > 0) {
-					float cooldown = 1 - Helpers.progress(punchyZero.swingCooldown, 60);
+				if (punchyZero.hadangekiCooldown > 0) {
+					float cooldown = 1 - Helpers.progress(punchyZero.hadangekiCooldown, 60);
 					drawGigaWeaponCooldown(102, cooldown, xStart, yStart);
 					xStart += 15;
 				}
@@ -1415,7 +1415,7 @@ public class GameMode {
 			}
 			if (player.character is ViralSigma) {
 				renderAmmo(baseX, ref baseY, 61, 50, player.sigmaAmmo, grayAmmo: player.weapon.getAmmoUsage(0));
-			} else if (player.isMainPlayer && player.currentMaverick == null) {
+			} else if (player.isMainPlayer && player.currentMaverick == null && !player.isSigma3()) {
 				int hudWeaponBaseIndex = 50;
 				int hudWeaponFullIndex = 39;
 				int floorOrCeil = MathInt.Ceiling(player.sigmaMaxAmmo * ammoDisplayMultiplier);
@@ -1488,7 +1488,7 @@ public class GameMode {
 						(weapon is HyperBuster hb && !hb.canShootIncludeCooldown(level.mainPlayer))) {
 						spriteIndex = grayAmmoIndex;
 					}
-					if (spriteIndex >= Global.sprites["hud_weapon_full"].frames.Count) {
+					if (spriteIndex >= Global.sprites["hud_weapon_full"].frames.Length) {
 						spriteIndex = 0;
 					}
 					Global.sprites["hud_weapon_full"].drawToHUD(spriteIndex, baseX, baseY);
@@ -1582,7 +1582,7 @@ public class GameMode {
 				);
 				int weaponIndex = killFeed.weaponIndex ?? 0;
 				weaponIndex = (
-					weaponIndex < Global.sprites["hud_killfeed_weapon"].frames.Count ? weaponIndex : 0
+					weaponIndex < Global.sprites["hud_killfeed_weapon"].frames.Length ? weaponIndex : 0
 				);
 				Global.sprites["hud_killfeed_weapon"].drawToHUD(
 					weaponIndex, fromRight - nameLen - 14, fromTop + (i * yDist) - 2
@@ -2079,8 +2079,8 @@ public class GameMode {
 		if (weapon is AbsorbWeapon aw) {
 			var sprite = Global.sprites[aw.absorbedProj.sprite.name];
 
-			float w = sprite.getCurrentFrame().rect.w();
-			float h = sprite.getCurrentFrame().rect.h();
+			float w = sprite.frames[0].rect.w();
+			float h = sprite.frames[0].rect.h();
 
 			float scaleX = Helpers.clampMax(10f / w, 1);
 			float scaleY = Helpers.clampMax(10f / h, 1);

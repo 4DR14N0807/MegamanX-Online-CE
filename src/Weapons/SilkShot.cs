@@ -51,12 +51,9 @@ public class SilkShotProj : Projectile {
 		if (rpc) {
 			rpcCreate(pos, player, netProjId, xDir);
 		}
-		if (Global.level.levelData.displayName.Contains("crystal")) {
-			changeSprite("silkshot_proj2", true);
-		} else {
-			frameSpeed = 0;
-			frameIndex = Helpers.randomRange(0, sprite.frames.Count - 1);
-		}
+		frameSpeed = 0;
+		frameIndex = Helpers.randomRange(0, sprite.totalFrameNum - 1);
+
 	}
 
 	public override void onHitWall(CollideData other) {

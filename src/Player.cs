@@ -700,7 +700,7 @@ public partial class Player {
 		return charNum + (maverick1v1 ?? -1) + 1;
 	}
 
-	public const int netIdsPerPlayer = 2500;
+	public const int netIdsPerPlayer = 2000;
 
 	// The first net id this player could possibly own. This includes the "reserved" ones
 	public ushort getStartNetId() {
@@ -735,7 +735,7 @@ public partial class Player {
 		if (curATransNetId < getStartNetId() + 1) {
 			curATransNetId = (ushort)(getStartNetId() + 1);
 		}
-		var retId = curATransNetId;
+		ushort retId = curATransNetId;
 		curATransNetId++;
 		if (curATransNetId >= getStartNetId() + 10) {
 			curATransNetId = (ushort)(getStartNetId() + 1);
@@ -1012,8 +1012,13 @@ public partial class Player {
 		configureWeapons();
 		maxHealth = getMaxHealth();
 		if (isSigma) {
-			if (isSigma1()) sigmaAmmo = sigmaMaxAmmo;
-			else if (isSigma2()) sigmaAmmo = 0;
+			if (isSigma1()) {
+				sigmaMaxAmmo = 20;
+				sigmaAmmo = sigmaMaxAmmo;
+			} else if (isSigma2()) {
+				sigmaMaxAmmo = 28;
+				sigmaAmmo = 0;
+			}
 		}
 		health = maxHealth;
 		assassinHitPos = null;

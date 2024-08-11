@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -178,13 +181,21 @@ class Program {
 		}
 
 		// Loading with GUI.
+		string urlText = "Using local conection.";
+		bool hasServerOnlineUrl = false;
+
 		loadText.Add("Getting Master Server URL...");
 		loadMultiThread(loadText, window, MasterServerData.updateMasterServerURL);
-		if (MasterServerData.serverIp == "127.0.0.1") {
-			loadText[loadText.Count - 1] = "Using local conection.";
-		} else {
-			loadText[loadText.Count - 1] = "Master Server OK.";
+		if (MasterServerData.serverIp != "127.0.0.1") {
+			urlText = "All IPs OK.";
+			hasServerOnlineUrl = true;
 		}
+		loadText[loadText.Count - 1] = "Getting local IPs...";
+		loadMultiThread(loadText, window, getRadminIP);
+		if (Global.radminIP != "" && hasServerOnlineUrl) {
+			urlText += " Radmin detected.";
+		}
+		loadText[loadText.Count - 1] = urlText;
 
 		loadText.Add("Loading Sprites...");
 		loadMultiThread(loadText, window, loadImages);
@@ -226,68 +237,58 @@ class Program {
 		// Force startup config to be fetched
 		Menu.change(new MainMenu());
 		//Global.changeMusic(Global.level.levelData.getTitleTheme());
-		switch(Helpers.randomRange(1,19)) {
-			// Title screens
-			case 1:
-				Global.changeMusic("title_X1");
-				break;
-			case 2:
-				Global.changeMusic("title_X2");
-				break;
-			case 3:
-				Global.changeMusic("title_X3");
-				break;
+		switch(Helpers.randomRange(1, 15)) {
 			// Stage Selects
-			case 4:
+			case 1:
 				Global.changeMusic("stageSelect_X1");
 				break;
-			case 5:
+			case 2:
 				Global.changeMusic("stageSelect2_X1");
 				break;
-			case 6:
+			case 3:
 				Global.changeMusic("stageSelect_X2");
 				break;
-			case 7:
+			case 4:
 				Global.changeMusic("stageSelect2_X2");
 				break;
-			case 8:
+			case 5:
 				Global.changeMusic("stageSelect_X3");
 				break;
-			case 9:
+			case 6:
 				Global.changeMusic("stageSelect2_X3");
 				break;
 			// Introduction
-			case 10:
+			case 7:
 				Global.changeMusic("opening_X3");
 				break;
-			case 11:
+			case 8:
 				Global.changeMusic("opening_X2");
 				break;
 			// Extra
-			case 12:
+			case 9:
 				Global.changeMusic("ending_X3");
 				break;
-			case 13:
+			case 10:
 				Global.changeMusic("ending_X2");
 				break;
-			case 14:
+			case 11:
 				Global.changeMusic("ending_X1");
 				break;
-			case 15:
+			case 12:
 				Global.changeMusic("credits_X1");
 				break;
-			case 16:
+			case 13:
 				Global.changeMusic("demo_X2");
 				break;
-			case 17:
+			case 14:
 				Global.changeMusic("demo_X3");
-				break;	
-			case 18:
-				Global.changeMusic("laboratory_X3");
-				break;	
-			case 19:
-				Global.changeMusic("sigmaFortress4");
-				break;			
+				break;
+			case 15:
+				Global.changeMusic("laboratory_X2");
+				break;
+			default:
+				Global.changeMusic("stageSelect_X1");
+				break;
 		}
 		
 		if (mode == 1) {
@@ -295,9 +296,22 @@ class Program {
 			Menu.change(menu);
 			menu.completeAction();
 		} else if (mode == 2) {
-			// TODO: Fix this.
+			// TODO: Fix this.y
 			// Somehow we need to get the data before we connect.
 			Menu.change(new JoinMenuP2P(true));
+			var me = new ServerPlayer(
+				Options.main.playerName, 0, false,
+				SelectCharacterMenu.playerData.charNum, null, Global.deviceId, null, 0
+			);
+			Global.serverClient = ServerClient.CreateDirect(
+				args[0], int.Parse(args[1]), me,
+				out JoinServerResponse joinServerResponse, out string error
+			);
+			if (joinServerResponse != null && error == null) {
+				Menu.change(new WaitMenu(new MainMenu(), joinServerResponse.server, false));
+			} else {
+				Menu.change(new ErrorMenu(error, new MainMenu()));
+			}
 		}
 
 		while (window.IsOpen) {
@@ -904,9 +918,9 @@ class Program {
 			string name = Path.GetFileNameWithoutExtension(overrideSpritePath);
 			string json = File.ReadAllText(overrideSpritePath);
 
-			Sprite sprite = new Sprite(json, name, null);
+			AnimData sprite = new AnimData(json, name, null);
 			if (Global.sprites.ContainsKey(sprite.name)) {
-				Global.sprites[sprite.name].overrideSprite(sprite);
+				Global.sprites[sprite.name].overrideAnim(sprite);
 			}
 		}
 
@@ -937,6 +951,25 @@ class Program {
 			Global.spriteNameByIndex[i] = arrayBuffer[i];
 			Global.spriteCount++;
 		}
+
+		// Set up special sprites.
+		// Mods that does not use this should remove this thing.
+		Sprite.xArmorBootsBitmap = Global.textures["XBoots"];
+		Sprite.xArmorBodyBitmap = Global.textures["XBody"];
+		Sprite.xArmorHelmetBitmap = Global.textures["XHelmet"];
+		Sprite.xArmorArmBitmap = Global.textures["XArm"];
+
+		Sprite.xArmorBootsBitmap2 = Global.textures["XBoots2"];
+		Sprite.xArmorBodyBitmap2 = Global.textures["XBody2"];
+		Sprite.xArmorHelmetBitmap2 = Global.textures["XHelmet2"];
+		Sprite.xArmorArmBitmap2 = Global.textures["XArm2"];
+
+		Sprite.xArmorBootsBitmap3 = Global.textures["XBoots3"];
+		Sprite.xArmorBodyBitmap3 = Global.textures["XBody3"];
+		Sprite.xArmorHelmetBitmap3 = Global.textures["XHelmet3"];
+		Sprite.xArmorArmBitmap3 = Global.textures["XArm3"];
+
+		Sprite.axlArmBitmap = Global.textures["axlArm"];
 	}
 
 	static string loadSpritesSub(string[] spriteFilePaths) {
@@ -948,7 +981,7 @@ class Program {
 				continue;
 			}
 			fileChecksumDict[name] = json;
-			Sprite sprite = new Sprite(json, name, null);
+			AnimData sprite = new AnimData(json, name, "");
 			lock (Global.sprites) {
 				Global.sprites[sprite.name] = sprite;
 			}
@@ -1179,6 +1212,27 @@ class Program {
 
 		return true;
 	}
+
+	public static void getRadminIP() {
+		var local = NetworkInterface.GetAllNetworkInterfaces();
+		foreach (NetworkInterface net in local) {
+			if (net.NetworkInterfaceType != NetworkInterfaceType.Ethernet) {
+				continue;
+			}
+			if (!net.Description.ToLowerInvariant().Contains("radmin")) {
+				continue;
+			}
+			foreach (var uniAdress in net.GetIPProperties().UnicastAddresses) {
+				IPAddress ipAddress = IPAddress.Parse(uniAdress.Address.ToString());
+				if (ipAddress.AddressFamily == AddressFamily.InterNetwork) {
+					Global.radminIP = ipAddress.ToString();
+					return;
+				}
+			}
+		}
+	}
+
+	// Main loop stuff.
 	public static decimal deltaTimeSavings = 0;
 	public static decimal lastUpdateTime = 0;
 
