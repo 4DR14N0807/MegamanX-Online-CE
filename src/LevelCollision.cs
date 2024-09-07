@@ -5,12 +5,12 @@ using System.Linq;
 namespace MMXOnline;
 
 public struct Cell {
-	public int i;
-	public int j;
+	public int x;
+	public int y;
 	public HashSet<GameObject> gameobjects;
-	public Cell(int i, int j, HashSet<GameObject> gameobjects) {
-		this.i = i;
-		this.j = j;
+	public Cell(int x, int y, HashSet<GameObject> gameobjects) {
+		this.x = x;
+		this.y = y;
 		this.gameobjects = gameobjects;
 	}
 }
@@ -18,16 +18,18 @@ public struct Cell {
 public partial class Level {
 	public void setupGrid(float cellWidth) {
 		this.cellWidth = cellWidth;
-		var width = this.width;
-		var height = this.height;
-		var hCellCount = Math.Ceiling(width / cellWidth);
-		var vCellCount = Math.Ceiling(height / cellWidth);
+		int width = this.width;
+		int height = this.height;
+		int xCellCount = MathInt.Ceiling((decimal)width / (decimal)cellWidth);
+		int yCellCount = MathInt.Ceiling((decimal)height / (decimal)cellWidth);
 		//console.log("Creating grid with width " + hCellCount + " and height " + vCellCount);
-		for (var i = 0; i < vCellCount; i++) {
-			var curRow = new List<HashSet<GameObject>>();
-			grid.Add(curRow);
-			for (var j = 0; j < hCellCount; j++) {
-				curRow.Add(new HashSet<GameObject>());
+		grid = new HashSet<GameObject>[xCellCount, yCellCount];
+		terrainGrid = new HashSet<GameObject>[xCellCount, yCellCount];
+
+		for (var x = 0; x < xCellCount; x++) {
+			for (var y = 0; y < yCellCount; y++) {
+				grid[x, y] = new HashSet<GameObject>();
+				terrainGrid[x, y] = new HashSet<GameObject>();
 			}
 		}
 	}
@@ -37,8 +39,8 @@ public partial class Level {
 		var cells = new List<Cell>();
 		int startX = MathInt.Floor(shape.minX);
 		int endX = MathInt.Floor(shape.minX);
-		int startY = MathInt.Floor(shape.maxY);
-		int endY = MathInt.Floor(shape.maxY);
+		int startY = MathInt.Ceiling(shape.maxY);
+		int endY = MathInt.Ceiling(shape.maxY);
 
 		//Line case
 		if (shape.points.Count == 2) {
@@ -53,88 +55,92 @@ public partial class Level {
 			float mag = cellWidth / 2;
 			HashSet<int> usedCoords = new HashSet<int>();
 			while (dist <= maxDist) {
-				int i = MathInt.Floor(curY / cellWidth);
-				int j = MathInt.Floor(curX / cellWidth);
+				int x = MathInt.Floor(curX / cellWidth);
+				int y = MathInt.Floor(curY / cellWidth);
 				curX += dir.x * mag;
 				curY += dir.y * mag;
 				dist += mag;
-				if (i < 0 || j < 0 || i >= grid.Count || j >= grid[0].Count) continue;
-				int gridCoordKey = Helpers.getGridCoordKey((ushort)i, (ushort)j);
+				if (y < 0 || x < 0 || y >= grid.GetLength(1) || x >= grid.GetLength(0)) continue;
+				int gridCoordKey = Helpers.getGridCoordKey((ushort)x, (ushort)y);
 				if (usedCoords.Contains(gridCoordKey)) continue;
 				usedCoords.Add(gridCoordKey);
-				cells.Add(new Cell(i, j, grid[i][j]));
+				cells.Add(new Cell(x, y, grid[x, y]));
 			}
 			return cells;
 		}
 
-		int minY = MathInt.Floor(shape.minY / cellWidth);
 		int minX = MathInt.Floor(shape.minX / cellWidth);
-		int maxY = MathInt.Floor(shape.maxY / cellWidth);
 		int maxX = MathInt.Floor(shape.maxX / cellWidth);
+		int minY = MathInt.Floor(shape.minY / cellWidth);
+		int maxY = MathInt.Floor(shape.maxY / cellWidth);
 
-		minY = Math.Clamp(minY, 0, grid.Count - 1);
-		maxY = Math.Clamp(maxY, 0, grid.Count - 1);
-		minX = Math.Clamp(minX, 0, grid[0].Count - 1);
-		maxX = Math.Clamp(maxX, 0, grid[0].Count - 1);
+		minX = Math.Clamp(minX, 0, grid.GetLength(0) - 1);
+		maxX = Math.Clamp(maxX, 0, grid.GetLength(0) - 1);
+		minY = Math.Clamp(minY, 0, grid.GetLength(1) - 1);
+		maxY = Math.Clamp(maxY, 0, grid.GetLength(1) - 1);
 
-		for (int i = minY; i <= maxY; i++) {
-			for (int j = minX; j <= maxX; j++) {
-				cells.Add(new Cell(i, j, grid[i][j]));
+		for (int i = minX; i <= maxX; i++) {
+			for (int j = minY; j <= maxY; j++) {
+				cells.Add(new Cell(i, j, grid[i, j]));
 			}
 		}
 		return cells;
 	}
 
-	//Called a lot
+	public int[] getGridCellsPos(Shape shape) {
+		int minX = MathInt.Floor(shape.minX / cellWidth);
+		int maxX = MathInt.Floor(shape.maxX / cellWidth);
+		int minY = MathInt.Floor(shape.minY / cellWidth);
+		int maxY = MathInt.Floor(shape.maxY / cellWidth);
+
+		minX = Math.Clamp(minX, 0, grid.GetLength(0) - 1);
+		maxX = Math.Clamp(maxX, 0, grid.GetLength(0) - 1);
+		minY = Math.Clamp(minY, 0, grid.GetLength(1) - 1);
+		maxY = Math.Clamp(maxY, 0, grid.GetLength(1) - 1);
+
+		return [minX, minY, maxX, maxY];
+	}
+
+	// Called a lot
 	public List<GameObject> getGameObjectsInSameCell(Shape shape) {
 		List<Cell> cells = getGridCells(shape);
-		var retGameobjects = new HashSet<GameObject>();
-		foreach (var cell in cells) {
+		HashSet<GameObject> retGameobjects = new();
+		foreach (Cell cell in cells) {
 			if (cell.gameobjects == null) continue;
-			foreach (var cell2 in cell.gameobjects) {
-				if (gameObjects.Contains(cell2)) {
-					retGameobjects.Add(cell2);
-				} else {
-					gameObjects.Remove(cell2);
-					//console.log(cell2);
-					//throw "A gameobject was found in a cell but no longer exists in the map";
+			foreach (GameObject go in cell.gameobjects) {
+				if (!retGameobjects.Contains(go)) {
+					retGameobjects.Add(go);
 				}
 			}
 		}
-		var arr = new List<GameObject>();
+		List<GameObject> arr = new();
 		foreach (var go in retGameobjects) {
 			arr.Add(go);
 		}
 		return arr;
 	}
 
-	// Should be called when the object is destroyed for thorough cleanup.
-	public void removeFromGrid(GameObject go) {
-		foreach (var gridSet in occupiedGridSets) {
-			if (gridSet.Contains(go)) {
-				gridSet.Remove(go);
-			}
-			if (gridSet.Count == 0) {
-				occupiedGridSets.Remove(gridSet);
-			}
-		}
-	}
-
 	// Should be called on hitbox changes.
-	public void removeFromGridFast(GameObject go) {
-		Shape? allCollidersShape = go.getAllCollidersShape();
-		if (allCollidersShape == null) return;
-		var cells = getGridCells(allCollidersShape.Value);
-		foreach (var cell in cells) {
-			if (cell.gameobjects.Contains(go)) {
-				cell.gameobjects.Remove(go);
+	public void removeFromGrid(GameObject go) {
+		int hash = go.GetHashCode();
+		if (!populatedGrids.ContainsKey(hash)) {
+			return;
+		}
+		int[] dataPos = populatedGrids[hash];
+		for (int x = dataPos[0]; x <= dataPos[2]; x++) {
+			for (int y = dataPos[1]; y <= dataPos[3]; y++) {
+				grid[x, y].Remove(go);
 			}
 		}
+		populatedGrids.Remove(hash);
 	}
 
 	public void addGameObjectToGrid(GameObject go) {
 		if (!gameObjects.Contains(go)) {
 			return;
+		}
+		if (populatedGrids.ContainsKey(go.GetHashCode())) {
+			removeFromTerrainGrid(go);
 		}
 		Shape? allCollidersShape = go.getAllCollidersShape();
 		if (!allCollidersShape.HasValue) {
@@ -147,11 +153,11 @@ public partial class Level {
 			}
 		}
 		foreach (Cell cell in getGridCells(allCollidersShape.Value)) {
-			if (grid.InRange(cell.i) && grid[cell.i].InRange(cell.j) && !grid[cell.i][cell.j].Contains(go)) {
-				grid[cell.i][cell.j].Add(go);
-				occupiedGridSets.Add(grid[cell.i][cell.j]);
+			if (!grid[cell.x, cell.y].Contains(go)) {
+				grid[cell.x, cell.y].Add(go);
 			}
 		}
+		populatedGrids[go.GetHashCode()] = getGridCellsPos(allCollidersShape.Value);
 	}
 
 	public Point getGroundPos(Point pos, float depth = 60) {
@@ -178,10 +184,10 @@ public partial class Level {
 
 	public int getGridCount() {
 		int gridItemCount = 0;
-		for (int i = 0; i < grid.Count; i++) {
-			for (int j = 0; j < grid[i].Count; j++) {
-				if (grid[i][j].Count > 0) {
-					gridItemCount += grid[i][j].Count;
+		for (int x = 0; x < grid.GetLength(0); x++) {
+			for (int y = 0; y < grid.GetLength(1); y++) {
+				if (grid[x, y].Count > 0) {
+					gridItemCount += grid[x, y].Count;
 				}
 			}
 		}
@@ -197,8 +203,8 @@ public partial class Level {
 		var vCellCount = Math.Ceiling(height / cellWidth);
 		for (var i = 0; i < vCellCount; i++) {
 			for (var j = 0; j < hCellCount; j++) {
-				count += grid[i][j].Count;
-				var set = grid[i][j];
+				count += grid[j, i].Count;
+				var set = grid[j, i];
 				foreach (var go in set) {
 					if (!gameObjects.Contains(go)) {
 						//this.grid[i][j].delete(go);
@@ -224,6 +230,7 @@ public partial class Level {
 		removeFromGrid(go);
 		gameObjects.Remove(go);
 	}
+
 
 	public List<GameObject> getGameObjectArray() {
 		return new List<GameObject>(gameObjects);
@@ -308,10 +315,13 @@ public partial class Level {
 		return false;
 	}
 
-	public Point? getMtvDir(Actor actor, float inX, float inY, Point? vel, bool pushIncline, List<CollideData> overrideCollideDatas = null) {
+	public Point? getMtvDir(
+		Actor actor, float inX, float inY, Point? vel,
+		bool pushIncline, List<CollideData> overrideCollideDatas = null
+	) {
 		var collideDatas = overrideCollideDatas;
 		if (collideDatas == null) {
-			collideDatas = Global.level.checkCollisionsActor(actor, inX, inY, vel);
+			collideDatas = Global.level.checkTerrainCollision(actor, inX, inY, vel);
 		}
 
 		var onlyWalls = collideDatas.Where(cd => !(cd.gameObject is Wall)).Count() == 0;
@@ -448,7 +458,9 @@ public partial class Level {
 		return collideDatas;
 	}
 
-	public List<CollideData> getTriggerList(Actor actor, float incX, float incY, Point? vel = null, params Type[] classTypes) {
+	public List<CollideData> getTriggerList(
+		Actor actor, float incX, float incY, Point? vel = null, params Type[] classTypes
+	) {
 		var triggers = new List<CollideData>();
 		var myColliders = actor.getAllColliders();
 		if (myColliders.Count == 0) return triggers;
@@ -640,5 +652,160 @@ public partial class Level {
 			return true;
 		}
 		return false;
+	}
+
+	public void addTerrain(GameObject go) {
+		gameObjects.Add(go);
+		addToTerrainGrid(go);
+	}
+
+	public void removeTerrain(GameObject go) {
+		gameObjects.Remove(go);
+		removeFromTerrainGrid(go);
+	}
+
+	public void addToTerrainGrid(GameObject go) {
+		if (!gameObjects.Contains(go)) {
+			return;
+		}
+		if (populatedTerrainGrids.ContainsKey(go.GetHashCode())) {
+			removeFromTerrainGrid(go);
+		}
+		Shape? allCollidersShape = go.getAllCollidersShape();
+		if (!allCollidersShape.HasValue) {
+			return;
+		}
+		foreach (Cell cell in getGridCells(allCollidersShape.Value)) {
+			if (!terrainGrid[cell.x, cell.y].Contains(go)) {
+				terrainGrid[cell.x, cell.y].Add(go);
+			}
+		}
+		populatedTerrainGrids[go.GetHashCode()] = getGridCellsPos(allCollidersShape.Value);
+	}
+
+	public void removeFromTerrainGrid(GameObject go) {
+		int hash = go.GetHashCode();
+		if (!populatedGrids.ContainsKey(hash)) {
+			return;
+		}
+		int[] dataPos = populatedTerrainGrids[hash];
+		for (int x = dataPos[0]; x <= dataPos[2]; x++) {
+			for (int y = dataPos[1]; y <= dataPos[3]; y++) {
+				terrainGrid[x, y].Remove(go);
+			}
+		}
+		populatedTerrainGrids.Remove(hash);
+	}
+
+	public List<CollideData> checkTerrainCollision(
+		Actor actor, float incX, float incY, Point? vel = null, bool autoVel = false,
+		bool returnOne = false, bool checkPlatforms = false
+	) {
+		List<CollideData> collideDatas = new List<CollideData>();
+		// Use custom terrain collider by default.
+		Collider? terrainCollider = actor.getTerrainCollider();
+		// If terrain collider is not used or is null we use the default colliders.
+		if (terrainCollider == null) {
+			terrainCollider = actor.standartCollider;
+		}
+		if (actor.spriteToCollider.ContainsKey(actor.sprite.name) &&
+			actor.spriteToCollider[actor.sprite.name] == null
+		) {
+			return collideDatas;
+		}
+		// If there is no collider we return.
+		if (actor.standartCollider == null) {
+			return collideDatas;
+		}
+		if (autoVel && vel == null) {
+			vel = new Point(incX, incY);
+		}
+		Shape actorShape = actor.collider.shape.clone(incX, incY);
+		GameObject[] gameObjects = getTerrainInSameCell(actorShape);
+		foreach (GameObject go in gameObjects) {
+			if (go == actor) continue;
+			if (go.collider == null) continue;
+			bool isTrigger = shouldTrigger(actor, go, actor.collider, go.collider, new Point(incX, incY));
+			if (go is Actor goActor && goActor.isPlatform && checkPlatforms) {
+				isTrigger = false;
+			}
+			if (isTrigger) continue;
+			HitData hitData = actorShape.intersectsShape(go.collider.shape, vel);
+			if (hitData != null) {
+				collideDatas.Add(new CollideData(actor.collider, go.collider, vel, isTrigger, go, hitData));
+				if (returnOne) {
+					return collideDatas;
+				}
+			}
+		}
+
+		return collideDatas;
+	}
+
+	public GameObject[] getTerrainInSameCell(Shape shape) {
+		List<Cell> cells = getTerrainCells(shape);
+		HashSet<GameObject> retGameobjects = new();
+		foreach (Cell cell in cells) {
+			if (cell.gameobjects == null) continue;
+			foreach (GameObject go in cell.gameobjects) {
+				if (!retGameobjects.Contains(go)) {
+					retGameobjects.Add(go);
+				}
+			}
+		}
+		return retGameobjects.ToArray();
+	}
+
+	//Optimize this function, it will be called a lot
+	public List<Cell> getTerrainCells(Shape shape) {
+		var cells = new List<Cell>();
+		int startX = MathInt.Floor(shape.minX);
+		int endX = MathInt.Floor(shape.minX);
+		int startY = MathInt.Ceiling(shape.maxY);
+		int endY = MathInt.Ceiling(shape.maxY);
+
+		//Line case
+		if (shape.points.Count == 2) {
+			var point1 = shape.points[0];
+			var point2 = shape.points[1];
+			var dir = point1.directionToNorm(point2);
+			var curX = point1.x;
+			var curY = point1.y;
+			float dist = 0;
+			var maxDist = point1.distanceTo(point2);
+			//var mag = maxDist / (this.cellWidth/2);
+			float mag = cellWidth / 2;
+			HashSet<int> usedCoords = new HashSet<int>();
+			while (dist <= maxDist) {
+				int y = MathInt.Floor(curY / cellWidth);
+				int x = MathInt.Floor(curX / cellWidth);
+				curX += dir.x * mag;
+				curY += dir.y * mag;
+				dist += mag;
+				if (y < 0 || x < 0 || y >= terrainGrid.GetLength(1) || x >= terrainGrid.GetLength(0)) continue;
+				int gridCoordKey = Helpers.getGridCoordKey((ushort)x, (ushort)y);
+				if (usedCoords.Contains(gridCoordKey)) continue;
+				usedCoords.Add(gridCoordKey);
+				cells.Add(new Cell(x, y, terrainGrid[x, y]));
+			}
+			return cells;
+		}
+
+		int minY = MathInt.Floor(shape.minY / cellWidth);
+		int minX = MathInt.Floor(shape.minX / cellWidth);
+		int maxY = MathInt.Floor(shape.maxY / cellWidth);
+		int maxX = MathInt.Floor(shape.maxX / cellWidth);
+
+		minX = Math.Clamp(minX, 0, terrainGrid.GetLength(0) - 1);
+		maxX = Math.Clamp(maxX, 0, terrainGrid.GetLength(0) - 1);
+		minY = Math.Clamp(minY, 0, terrainGrid.GetLength(1) - 1);
+		maxY = Math.Clamp(maxY, 0, terrainGrid.GetLength(1) - 1);
+
+		for (int x = minX; x <= maxX; x++) {
+			for (int y = minY; y <= maxY; y++) {
+				cells.Add(new Cell(x, y, terrainGrid[x, y]));
+			}
+		}
+		return cells;
 	}
 }

@@ -15,6 +15,11 @@ public class StrikeChain : Weapon {
 		killFeedIndex = 20 + (index - 9);
 		weaknessIndex = 13;
 		switchCooldown = 0;
+		damage = "2/4";
+		effect = "Hooks enemies and items. Be Spider-Man.";
+		hitcooldown = "0.5";
+		Flinch = "Hooked Time";
+		FlinchCD = "0";
 	}
 
 	public override void getProjectile(Point pos, int xDir, Player player, float chargeLevel, ushort netProjId) {
@@ -204,7 +209,7 @@ public class StrikeChainProj : Projectile {
 		var hookedChar = hookedActor as Character;
 
 		if (hookedChar != null && hookedChar.charState is StrikeChainHooked) {
-			hookedChar.changeState(new Idle());
+			hookedChar.changeToLandingOrFall();
 		}
 		if (hookedActor is Anim) {
 			hookedActor.useGravity = true;
@@ -348,12 +353,7 @@ public class StrikeChainPullToWall : CharState {
 		base.update();
 		if (scp == null || scp.destroyed) {
 			var collision = Global.level.checkCollisionActor(player.character, 0, 1);
-			if (collision?.gameObject is Wall) {
-				player.character.vel.y = 0;
-				player.character.changeState(new Idle(), true);
-			} else {
-				player.character.changeState(new Fall(), true);
-			}
+			character.changeToLandingOrFall();
 			return;
 		}
 	}
@@ -436,7 +436,7 @@ public class StrikeChainHooked : CharState {
 			stunTime += Global.spf;
 			if (!flinch || stunTime > 0.375f) {
 				isDone = true;
-				character.changeState(new Idle(), true);
+				character.changeToLandingOrFall();
 				return;
 			}
 		} else if (scpChar != null) {

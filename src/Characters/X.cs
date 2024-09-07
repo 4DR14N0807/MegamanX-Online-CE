@@ -83,6 +83,11 @@ public partial class MegamanX : Character {
 	public Sprite hyperChargePartSprite =  new Sprite("hypercharge_part_1");
 	public Sprite hyperChargePart2Sprite =  new Sprite("hypercharge_part_1");
 
+	public bool isShootingSpecialBuster;
+
+	public Buster staticBusterWeapon = new();
+	public Buster specialBuster => (player.weapons.OfType<Buster>().FirstOrDefault() ?? staticBusterWeapon);
+
 	public MegamanX(
 		Player player, float x, float y, int xDir,
 		bool isVisible, ushort? netId, bool ownedByLocalPlayer,
@@ -392,7 +397,7 @@ public partial class MegamanX : Character {
 			}
 		}
 
-		player.busterWeapon.update();
+		staticBusterWeapon.update();
 
 		var oldWeapon = player.weapon;
 		if (canShootSpecialBuster()) {
@@ -405,14 +410,14 @@ public partial class MegamanX : Character {
 				}
 			} else {
 				if (lastFrameSpecialHeld) {
-					player.isShootingSpecialBuster = true;
+					isShootingSpecialBuster = true;
 				}
 				lastFrameSpecialHeld = false;
 			}
 		} else {
 			lastFrameSpecialHeld = false;
 			lastShotWasSpecialBuster = false;
-			player.isShootingSpecialBuster = false;
+			isShootingSpecialBuster = false;
 		}
 
 		if (charState.canShoot()) {
@@ -445,10 +450,10 @@ public partial class MegamanX : Character {
 			int framesSinceLastShootReleased = Global.frameCount - lastShootReleased;
 			var shootHeld = player.input.isHeld(Control.Shoot, player);
 
-			if (lastShotWasSpecialBuster) player.isShootingSpecialBuster = true;
+			if (lastShotWasSpecialBuster) isShootingSpecialBuster = true;
 
 			bool offCooldown = oldWeapon.shootTime == 0 && shootTime == 0;
-			if (player.isShootingSpecialBuster) {
+			if (isShootingSpecialBuster) {
 				offCooldown = oldWeapon.shootTime < oldWeapon.rateOfFire * 0.5f && shootTime == 0;
 			}
 
@@ -477,7 +482,7 @@ public partial class MegamanX : Character {
 			}
 		}
 
-		player.isShootingSpecialBuster = false;
+		isShootingSpecialBuster = false;
 
 		if (chargedSpinningBlade != null || chargedFrostShield != null || chargedTunnelFang != null) {
 			changeSprite("mmx_" + charState.shootSprite, true);
@@ -1150,6 +1155,7 @@ public partial class MegamanX : Character {
 		if (isShootingRaySplasher) return false;
 		if (chargedFrostShield != null) return false;
 		if (chargedTunnelFang != null) return false;
+		if (invulnTime > 0) return false;
 
 		return base.canShoot();
 	}
@@ -1321,7 +1327,7 @@ public partial class MegamanX : Character {
 					flinch = Global.defFlinch;
 				}
 				Projectile proj = new GenericMeleeProj(
-					player.headbuttWeapon, centerPoint, ProjIds.Headbutt, player,
+					Headbutt.netWeapon, centerPoint, ProjIds.Headbutt, player,
 					damage, flinch, 0.5f
 				);
 				var rect = new Rect(0, 0, 14, 4);
@@ -1490,7 +1496,7 @@ public partial class MegamanX : Character {
 	}
 
 	public bool shouldShowHyperBusterCharge() {
-		return flag != null && player.weapon is HyperBuster hb && hb.canShootIncludeCooldown(player);
+		return player.weapon is HyperBuster hb && hb.canShootIncludeCooldown(player) || flag != null;
 	}
 
 	public override bool isInvulnerable(bool ignoreRideArmorHide = false, bool factorHyperMode = false) {

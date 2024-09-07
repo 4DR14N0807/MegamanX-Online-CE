@@ -83,7 +83,7 @@ public partial class Actor : GameObject {
 	public bool visible = true;
 	public bool timeSlow;
 	public bool destroyed;
-	public float destroyedOnFrame;
+	public long destroyedOnFrame;
 	public ShaderWrapper? genericShader;
 	public virtual List<ShaderWrapper>? getShaders() { return genericShader != null ? new List<ShaderWrapper> { genericShader } : null; }
 	public float alpha = 1;
@@ -286,10 +286,8 @@ public partial class Actor : GameObject {
 		}
 
 		if (!Global.sprites.ContainsKey(spriteName)) return;
+		Global.level.removeFromGrid(this);
 
-		if (sprite != null) {
-			Global.level.removeFromGridFast(this);
-		}
 		int oldFrameIndex = sprite?.frameIndex ?? 0;
 		float oldFrameTime = sprite?.frameSeconds ?? 0;
 		float oldAnimTime = sprite?.animSeconds ?? 0;
@@ -783,10 +781,14 @@ public partial class Actor : GameObject {
 
 		if (this is Character) {
 			move(vel.addxy(xFlinchPushVel + xIceVel + xPushVel + xSwingVel, 0), true, true, false);
-			move(new Point(0, yPushVel), true, false, false);
+			if (yPushVel != 0) {
+				move(new Point(0, yPushVel), true, false, false);
+			}
 		} else if (!isStatic) {
 			move(vel.addxy(xFlinchPushVel + xIceVel + xPushVel + xSwingVel, 0), true, true, false);
-			move(new Point(0, yPushVel), true, false, false);
+			if (yPushVel != 0) {
+				move(new Point(0, yPushVel), true, false, false);
+			}
 		}
 
 		float yMod = reversedGravity ? -1 : 1;
@@ -913,13 +915,13 @@ public partial class Actor : GameObject {
 				return false;
 			}
 			if (character.invulnTime > 0) {
-				int mod10 = Global.level.frameCount % 4;
+				long mod10 = Global.level.frameCount % 4;
 				if (mod10 < 2) return false;
 			}
 		}
 		if (this is Maverick maverick) {
 			if (maverick.invulnTime > 0) {
-				int mod10 = Global.level.frameCount % 4;
+				long mod10 = Global.level.frameCount % 4;
 				if (mod10 < 2) return false;
 			}
 		}
@@ -1778,7 +1780,7 @@ public partial class Actor : GameObject {
 		int distance, bool isRequesterAI = false,
 		bool checkWalls = false, bool includeAllies = false
 	) {
-		List<Actor> closeActors = new();
+		HashSet<Actor> closeActors = new();
 		int halfDist = MathInt.Floor(distance / 2f);
 
 		Point checkPos = new Point(MathF.Round(pos.x), MathF.Round(pos.y));
@@ -1788,7 +1790,7 @@ public partial class Actor : GameObject {
 		).getShape();
 		var hits = Global.level.checkCollisionsShape(shape, null);
 		int alliance = -1;
-		if (includeAllies) {
+		if (!includeAllies) {
 			alliance = this switch {
 				Character selfChar => selfChar.player.alliance,
 				Projectile selfProj => selfProj.damager.owner.alliance,
@@ -1809,7 +1811,9 @@ public partial class Actor : GameObject {
 					continue;
 				}
 			}
-			closeActors.Add(actor);
+			if (!closeActors.Contains(actor)) {
+				closeActors.Add(actor);
+			}
 		}
 		return closeActors.ToArray();
 	}

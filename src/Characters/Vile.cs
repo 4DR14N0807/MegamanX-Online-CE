@@ -322,6 +322,7 @@ public class Vile : Character {
 		} */
 
 		if (isInvulnerableAttack()) return;
+		if (invulnTime > 0) return;
 		if (!player.canControl) return;
 
 		// GMTODO: Consider a better way here instead of a hard-coded deny list
@@ -607,12 +608,19 @@ public class Vile : Character {
 		return "vile_" + spriteName;
 	}
 
-	public override void changeToIdleOrFall() {
+	public override void changeToIdleOrFall(string transitionSprite = "") {
 		if (!grounded && charState.wasVileHovering && canVileHover()) {
 			changeState(new VileHover(), true);
 			return;
 		}
-		base.changeToIdleOrFall();
+		base.changeToIdleOrFall(transitionSprite);
+	}
+
+	public override float getLabelOffY() {
+		if (sprite.name.Contains("_ra_")) {
+			return 25;
+		}
+		return 50;
 	}
 
 	public override void render(float x, float y) {

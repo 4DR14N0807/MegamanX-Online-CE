@@ -17,7 +17,7 @@ public partial class Actor {
 			return _globalCollider;
 		}
 		set {
-			Global.level.removeFromGridFast(this);
+			Global.level.removeFromGrid(this);
 			_globalCollider = value;
 			Global.level.addGameObjectToGrid(this);
 		}
@@ -28,7 +28,7 @@ public partial class Actor {
 	}
 
 	public void changeGlobalCollider(List<Point> newPoints) {
-		Global.level.removeFromGridFast(this);
+		Global.level.removeFromGrid(this);
 		_globalCollider._shape.points = newPoints;
 		Global.level.addGameObjectToGrid(this);
 	}
@@ -106,25 +106,52 @@ public partial class Actor {
 		}
 		bool hasNonAttackColider = false;
 		foreach (Collider allCollider in getAllColliders()) {
-			Color hitboxColor = new Color(173, 216, 230, 128);
-			if (allCollider.isAttack()) {
-				hitboxColor = new Color(byte.MaxValue, 0, 0, 128);
-				if (destroyed) {
-					hitboxColor = new Color(128, 0, 255, 128);
+			
+			if (allCollider._shape.points.Count == 4) {
+				Color hitboxColor = new Color(50, 100, 255, 50);
+				Color outlineColor = new Color(0, 0, 255, 200);
+				if (allCollider.isAttack()) {
+					hitboxColor = new Color(255, 0, 0, 100);
+					outlineColor = new Color(255, 0, 0, 200);
+				} else {
+					hasNonAttackColider = true;
 				}
+				Rect rect = allCollider.shape.getRect();
+				rect.x1 += 1;
+				rect.y1 += 1;
+				rect.x2 -= 1;
+				rect.y2 -= 1;
+				DrawWrappers.DrawRect(
+					rect.x1, rect.y1, rect.x2, rect.y2,
+					true, hitboxColor, 1, zIndex + 1, true,
+					outlineColor
+				);
 			} else {
-				hasNonAttackColider = true;
+				Color hitboxColor = new Color(173, 216, 230, 200);
+				if (allCollider.isAttack()) {
+					hitboxColor = new Color(byte.MaxValue, 0, 0, 100);
+					if (destroyed) {
+						hitboxColor = new Color(128, 0, 255, 100);
+					}
+				} else {
+					hasNonAttackColider = true;
+				}
+				DrawWrappers.DrawPolygon(allCollider.shape.points, hitboxColor, fill: true, zIndex + 1);
 			}
-			DrawWrappers.DrawPolygon(allCollider.shape.points, hitboxColor, fill: true, zIndex + 1);
 		}
 		if (hasNonAttackColider) {
 			Collider? terrainCollider = getTerrainCollider();
 			if (terrainCollider == null) {
 				return;
 			}
+			Rect rect = terrainCollider.shape.getRect();
+			rect.x1 += 1;
+			rect.y1 += 1;
+			rect.x2 -= 1;
+			rect.y2 -= 1;
 			DrawWrappers.DrawPolygon(
-				terrainCollider.shape.points,
-				new Color(178, 0, 216, 200),
+				rect.getPoints(),
+				new Color(0, 255, 0, 150),
 				fill: false, zIndex + 1, true
 			);
 		}
@@ -240,13 +267,13 @@ public partial class Actor {
 	}
 
 	public void incPos(Point amount) {
-		Global.level.removeFromGridFast(this);
+		Global.level.removeFromGrid(this);
 		pos.inc(amount);
 		Global.level.addGameObjectToGrid(this);
 	}
 
 	public void changePos(Point newPos) {
-		Global.level.removeFromGridFast(this);
+		Global.level.removeFromGrid(this);
 		pos = newPos;
 		Global.level.addGameObjectToGrid(this);
 	}
@@ -301,7 +328,10 @@ public partial class Actor {
 		}
 	}
 
-	public void move(Point amount, bool useDeltaTime = true, bool pushIncline = true, bool useIce = true, MoveClampMode clampMode = MoveClampMode.None) {
+	public void move(
+		Point amount, bool useDeltaTime = true, bool pushIncline = true,
+		bool useIce = true, MoveClampMode clampMode = MoveClampMode.None
+	) {
 		var times = useDeltaTime ? Global.spf : 1;
 
 		if (grounded && groundedIce && useIce && (
@@ -325,7 +355,8 @@ public partial class Actor {
 		if (physicsCollider == null) {
 			incPos(moveAmount);
 		}
-		//Regular collider: need to detect collision incrementally and stop moving past a collider if that's the case
+		// Regular collider: need to detect collision incrementally
+		// and stop moving past a collider if that's the case
 		else {
 			freeFromCollision();
 
@@ -355,8 +386,8 @@ public partial class Actor {
 
 	public void freeFromCollision() {
 		//Already were colliding in first place: free with path of least resistance
-		var currentCollideDatas = Global.level.checkCollisionsActor(this, 0, 0, null);
-
+		var currentCollideDatas = Global.level.checkTerrainCollision(this, 0, 0, null);
+ 
 		foreach (var collideData in currentCollideDatas) {
 			if (this is Character chara && collideData.gameObject is Character otherChara) {
 				chara.insideCharacter = true;

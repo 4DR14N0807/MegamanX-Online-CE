@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using SFML.Graphics;
+using static SFML.Window.Keyboard;
 
 namespace MMXOnline;
 
@@ -99,8 +100,8 @@ public partial class Character : Actor, IDamagable {
 	// Some things previously in other char files used by multiple characters.
 	public int lastShootPressed;
 	public int lastShootReleased;
-	public int lastAttackFrame = -100;
-	public int framesSinceLastAttack = 1000;
+	public long lastAttackFrame = -100;
+	public long framesSinceLastAttack = 1000;
 	public float grabCooldown;
 
 	public RideArmor? startRideArmor;
@@ -388,6 +389,7 @@ public partial class Character : Actor, IDamagable {
 		if (isCCImmune()) return;
 		if (isInvulnerable()) return;
 		if (isVaccinated()) return;
+		if (charState.invincible) return;
 
 		igFreezeProgress += amount;
 		igFreezeRecoveryCooldown = 0;
@@ -413,17 +415,6 @@ public partial class Character : Actor, IDamagable {
 
 	public override List<ShaderWrapper> getShaders() {
 		List<ShaderWrapper> shaders = new();
-		ShaderWrapper? palette = null;
-
-		// TODO: Send this to the respective classes.
-		if (player.isViralSigma()) {
-			int paletteNum = 6 - MathInt.Ceiling((player.health / player.maxHealth) * 6);
-			if (sprite.name.Contains("_enter")) paletteNum = 0;
-			palette = player.viralSigmaShader;
-			palette?.SetUniform("palette", paletteNum);
-			palette?.SetUniform("paletteTexture", Global.textures["paletteViralSigma"]);
-		}
-		if (palette != null) shaders.Add(palette);
 
 		if (player.isPossessed() && player.possessedShader != null) {
 			player.possessedShader.SetUniform("palette", 1);
@@ -1043,7 +1034,7 @@ public partial class Character : Actor, IDamagable {
 			flag.changePos(getCenterPos());
 		}
 
-		if (startRideArmor != null &&!Global.level.hasGameObject(startRideArmor)) {
+		if (startRideArmor != null && !Global.level.hasGameObject(startRideArmor)) {
 			startRideArmor = null;
 		}
 
@@ -1508,7 +1499,7 @@ public partial class Character : Actor, IDamagable {
 	}
 
 	public void freeze(int timeToFreeze = 120) {
-		if (!ownedByLocalPlayer || !canFreeze()) {
+		if (!ownedByLocalPlayer) {
 			return;
 		}
 		frozenMaxTime = timeToFreeze;
@@ -1524,6 +1515,7 @@ public partial class Character : Actor, IDamagable {
 			(this as MegamanX)?.chargedRollingShieldProj == null &&
 			!charState.stunResistant &&
 			!charState.invincible &&
+			invulnTime == 0 &&
 			freezeInvulnTime <= 0 &&
 			!isInvulnerable() &&
 			!isVaccinated() &&
@@ -1533,14 +1525,14 @@ public partial class Character : Actor, IDamagable {
 
 	public void paralize(float timeToParalize = 120) {
 		if (!ownedByLocalPlayer ||
-			charState is Die ||
-			(this as MegamanX)?.chargedRollingShieldProj != null ||
-			charState.stunResistant ||
-			stunInvulnTime > 0 ||
-			isInvulnerable() &&
+			isInvulnerable() ||
 			isVaccinated() ||
-			isCCImmune() || 
-			charState.invincible
+			isCCImmune() ||
+			charState.invincible ||
+			charState.stunResistant ||
+			(charState is Die or VileMK2Grabbed) ||
+			(this as MegamanX)?.chargedRollingShieldProj != null ||
+		 	stunInvulnTime > 0
 		) {
 			return;
 		}
@@ -1553,15 +1545,15 @@ public partial class Character : Actor, IDamagable {
 
 	public void crystalize(float timeToCrystalize = 120) {
 		if (!ownedByLocalPlayer ||
-			charState is Die ||
-			(this as MegamanX)?.chargedRollingShieldProj != null ||
-			charState.stunResistant ||
-			isCrystalized ||
-			crystalizeInvulnTime > 0 ||
 			isInvulnerable() ||
 			isVaccinated() ||
-			isCCImmune() || 
-			charState.invincible
+			isCCImmune() ||
+			charState.invincible ||
+			charState.stunResistant ||
+			isCrystalized ||
+			(charState is Die) ||
+			(this as MegamanX)?.chargedRollingShieldProj != null ||
+			crystalizeInvulnTime > 0
 		) {
 			return;
 		}
@@ -1628,6 +1620,7 @@ public partial class Character : Actor, IDamagable {
 	// and should be set only by code that is checking to see if such things can be done.
 	public virtual bool isInvulnerable(bool ignoreRideArmorHide = false, bool factorHyperMode = false) {
 		if (isWarpIn()) return true;
+		if (invulnTime > 0) return true;
 		if (!ignoreRideArmorHide && charState is InRideArmor && (charState as InRideArmor)?.isHiding == true) {
 			return true;
 		}
@@ -1705,11 +1698,6 @@ public partial class Character : Actor, IDamagable {
 	}
 
 	public override Point getCenterPos() {
-		if (player.isSigma) {
-			if (player.isWolfSigma()) return pos.addxy(0, -7);
-			else if (player.isViralSigma()) return pos.addxy(0, 0);
-			return pos.addxy(0, -32);
-		}
 		return pos.addxy(0, -18);
 	}
 
@@ -1941,9 +1929,9 @@ public partial class Character : Actor, IDamagable {
 		return -1;
 	}
 
-	public virtual void changeToIdleOrFall() {
+	public virtual void changeToIdleOrFall(string transitionSprite = "") {
 		if (grounded) {
-			changeState(new Idle(), true);
+			changeState(new Idle(transitionSprite), true);
 		} else {
 			changeState(new Fall(), true);
 		}
@@ -1952,6 +1940,14 @@ public partial class Character : Actor, IDamagable {
 	public virtual void changeToLandingOrFall(bool useSound = true) {
 		if (grounded) {
 			landingCode(useSound);
+		} else {
+			changeState(new Fall(), true);
+		}
+	}
+
+	public virtual void changeToCrouchOrFall() {
+		if (grounded) {
+			changeState(new Crouch(), true);
 		} else {
 			changeState(new Fall(), true);
 		}
@@ -2027,21 +2023,11 @@ public partial class Character : Actor, IDamagable {
 	}
 
 	// Get dist from y pos to pos at which to draw the first label
-	public float getLabelOffY() {
-		float offY = 42;
-		if (player.isZero) offY = 45;
-		if (player.isVile) offY = 50;
-		if (player.isSigma) offY = 62;
-		if (sprite.name.Contains("_ra_")) offY = 25;
-		if (player.isMainPlayer && player.isTagTeam() && player.currentMaverick != null) {
-			offY = player.currentMaverick.getLabelOffY();
+	public virtual float getLabelOffY() {
+		if (sprite.name.Contains("_ra_")) {
+			return 25;
 		}
-		if (player.isWolfSigma()) offY = 25;
-		if (player.isViralSigma()) offY = 43;
-		if (player.isKaiserSigma()) offY = 125;
-		if (player.isKaiserViralSigma()) offY = 60;
-
-		return offY;
+		return 42;
 	}
 
 	public override void render(float x, float y) {
@@ -2312,7 +2298,14 @@ public partial class Character : Actor, IDamagable {
 			if (headPos != null) {
 				//DrawWrappers.DrawCircle(headPos.Value.x, headPos.Value.y, headshotRadius, true, new Color(255, 0, 255, 128), 1, ZIndex.HUD);
 				var headRect = getHeadRect();
-				DrawWrappers.DrawRect(headRect.x1, headRect.y1, headRect.x2, headRect.y2, true, new Color(255, 0, 0, 128), 1, ZIndex.HUD);
+				DrawWrappers.DrawRect(
+					headRect.x1 + 1,
+					headRect.y1 + 1,
+					headRect.x2 - 1,
+					headRect.y2 - 1,
+					true, new Color(255, 0, 0, 50), 1, ZIndex.HUD, true,
+					new Color(255, 0, 0, 128)
+				);
 			}
 		}
 	}
@@ -2668,10 +2661,11 @@ public partial class Character : Actor, IDamagable {
 		if (damage > 0 && charState is DarkHoldState dhs && dhs.stateFrames > 10 && !Damager.isDot(projId)) {
 			changeToIdleOrFall();
 		}
-
+		//this made Axl immortal to pits, suicide button, etc
+		/*
 		if (attacker == player && axl?.isWhiteAxl() == true) {
 			damage = 0;
-		}
+		} */
 		if (Global.level.isRace() &&
 			damage != (decimal)Damager.envKillDamage &&
 			damage != (decimal)Damager.switchKillDamage &&
@@ -2698,7 +2692,7 @@ public partial class Character : Actor, IDamagable {
 		// For fractional damage shenanigans.
 		if (damage % 1 != 0) {
 			decimal decDamage = damage % 1;
-			damage = Math.Floor(decDamage);
+			damage = Math.Floor(damage);
 			// Fully nullyfy decimal using damage savings if posible.
 			if (damageSavings >= decDamage) {
 				damageSavings -= decDamage;
@@ -3138,7 +3132,7 @@ public partial class Character : Actor, IDamagable {
 	// PARASITE SECTION
 	public void addParasite(Player attacker) {
 		if (!ownedByLocalPlayer) return;
-
+		if (this is Character character && (character.charState.invincible || character.isInvulnerable())) return;
 		Damager damager = new Damager(attacker, 4, Global.defFlinch, 0);
 		parasiteTime = Global.spf;
 		parasiteDamager = damager;
@@ -3435,11 +3429,8 @@ public partial class Character : Actor, IDamagable {
 	public bool disguiseCoverBlown;
 
 	public void addTransformAnim() {
-		transformAnim = new Anim(pos, "axl_transform", xDir, null, true);
-		playSound("transform");
-		if (ownedByLocalPlayer) {
-			Global.serverClient?.rpc(RPC.playerToggle, (byte)player.id, (byte)RPCToggleType.AddTransformEffect);
-		}
+		transformAnim = new Anim(pos, "axl_transform", xDir, player.getNextActorNetId(), true);
+		playSound("transform", sendRpc: true);
 	}
 
 	public virtual void onFlinchOrStun(CharState state) {
