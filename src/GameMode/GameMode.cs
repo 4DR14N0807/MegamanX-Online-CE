@@ -641,6 +641,14 @@ public class GameMode {
 				if (count >= 3) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x, y + 11);
 				if (count >= 4) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x + 13, y + 11);
 			}
+			if (drawPlayer.character is MegamanX mx && mx.stockCount > 0) {
+				int x = 10, y = 156;
+				int count = mx.stockCount;
+				if (count >= 1) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x, y);
+				if (count >= 2) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x + 13, y);
+				if (count >= 3) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x, y + 11);
+				if (count >= 4) Global.sprites["hud_killfeed_weapon"].drawToHUD(180, x + 13, y + 11);
+			}
 			if (drawPlayer.character is Zero zero) {
 				int yStart = 159;
 				if (zero.isViral) {
@@ -1198,10 +1206,12 @@ public class GameMode {
 	public void renderHealthAndWeapon(Player? player, HUDHealthPosition position) {
 		if (player == null) return;
 		if (level.is1v1() && player.deaths >= playingTo) return;
+		bool sBody = player.sClone != null;
 
 		//Health
 		renderHealth(player, position, false);
 		bool mechBarExists = renderHealth(player, position, true);
+		//if (sBody) renderHealth(player, position, false);
 
 		//Weapon
 		if (!mechBarExists) renderWeapon(player, position);
@@ -1224,7 +1234,7 @@ public class GameMode {
 		return new Point(x, y);
 	}
 
-	public bool renderHealth(Player player, HUDHealthPosition position, bool isMech) {
+	public bool renderHealth(Player player, HUDHealthPosition position, bool isMech, bool isSBody = false) {
 		bool mechBarExists = false;
 
 		string spriteName = "hud_health_base";
@@ -1289,6 +1299,42 @@ public class GameMode {
 			mechBarExists = true;
 			damageSavings = 0;
 		}
+
+		/*if (isSBody && player.sClone != null) {
+			spriteName = "hud_health_base_sbody";
+			health = player.sClone.health;
+			maxHealth = player.sClone.maxHealth;
+			frameIndex = 0;
+			baseX = getHUDHealthPosition(position, false).x;
+			mechBarExists = true;
+			damageSavings = 0;
+		}*/
+
+		if (isSBody) {
+			float baseX2 = getHUDHealthPosition(position, false).x;
+			float baseY2 = getHUDHealthPosition(position, true).y;
+			Global.sprites["hud_health_base_sbody"].drawToHUD(0, baseX2, baseY2);
+
+			for (var i = 0; i < MathF.Ceiling(player.sClone.maxHealth); i++) {
+			// Draw HP
+			if (i < MathF.Ceiling(player.sClone.health)) {
+				Global.sprites["hud_health_full"].drawToHUD(0, baseX2, baseY2);
+			} else if (i < MathInt.Ceiling(player.sClone.health) + damageSavings) {
+				Global.sprites["hud_health_full"].drawToHUD(4, baseX2, baseY2);
+			} else {
+				Global.sprites["hud_health_empty"].drawToHUD(0, baseX2, baseY2);
+			}
+
+			// 2-layer health
+			if (twoLayerHealth > 0 && i < MathF.Ceiling(twoLayerHealth)) {
+				Global.sprites["hud_health_full"].drawToHUD(2, baseX2, baseY2);
+			}
+
+			baseY -= 2;
+		}
+			Global.sprites["hud_health_top"].drawToHUD(0, baseX2, baseY2);
+		}
+
 
 		//maxHealth /= player.getHealthModifier();
 		//health /= player.getHealthModifier();
@@ -1365,6 +1411,37 @@ public class GameMode {
 		Global.sprites["hud_health_top"].drawToHUD(0, baseX, baseY);
 	}
 
+	public void renderSBodyHealth(
+		float baseX, ref float baseY,
+		float ammo, float maxAmmo = 32,
+		bool allowSmall = true
+	) {
+		baseY += 25;
+		Global.sprites["hud_health_base_sbody"].drawToHUD(0, baseX, baseY);
+		baseY -= 16;
+
+		// Puppeteer small energy bars.
+		bool forceSmallBarsOff = false;
+		if (!Options.main.smallBarsEx || !allowSmall && maxAmmo > 16) {
+			forceSmallBarsOff = true;
+		}
+
+		// Small Bars option.
+		float ammoDisplayMultiplier = 1;
+		if (Options.main.enableSmallBars && !forceSmallBarsOff) {
+			ammoDisplayMultiplier = 0.5f;
+		}
+		for (var i = 0; i < MathF.Ceiling(maxAmmo * ammoDisplayMultiplier); i++) {
+			if (i < Math.Ceiling(ammo * ammoDisplayMultiplier)) {
+				Global.sprites["hud_weapon_full"].drawToHUD(0, baseX, baseY);
+			} else {
+				Global.sprites["hud_health_empty"].drawToHUD(0, baseX, baseY);
+			}
+			baseY -= 2;
+		}
+		Global.sprites["hud_health_top"].drawToHUD(0, baseX, baseY);
+	}
+
 	public bool shouldDrawWeaponAmmo(Player player, Weapon weapon) {
 		if (weapon == null) return false;
 		if (weapon.weaponSlotIndex == 0) return false;
@@ -1384,6 +1461,11 @@ public class GameMode {
 		float ammoDisplayMultiplier = 1;
 		if (player.weapon.allowSmallBar && Options.main.enableSmallBars && !forceSmallBarsOff) {
 			ammoDisplayMultiplier = 0.5f;
+		}
+
+		if (player.isX && player.sClone != null) {
+			renderSBodyHealth(baseX, ref baseY, player.sClone.health,
+			player.sClone.maxHealth);
 		}
 
 		if (player.isSigma) {

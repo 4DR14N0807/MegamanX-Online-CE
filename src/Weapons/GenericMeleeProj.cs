@@ -98,6 +98,9 @@ public class GenericMeleeProj : Projectile {
 			case (int)ProjIds.VileMK2Grab:
 				charGrabCode(CommandGrabScenario.MK2Grab, grabberChar, damagable, new VileMK2GrabState(grabbedChar), new VileMK2Grabbed(grabberChar));
 				break;
+			case (int)ProjIds.RockF2Grab:
+				charGrabCode(CommandGrabScenario.RockF2Grab, grabbedChar, damagable, new RockGrabState(grabbedChar), new RockGrabbedState(grabberChar));
+				break;
 			case (int)ProjIds.LaunchODrain when owningActor is LaunchOctopus lo:
 				maverickGrabCode(CommandGrabScenario.WhirlpoolGrab, lo, damagable, new WhirlpoolGrabbed(lo));
 				break;

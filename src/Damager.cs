@@ -493,6 +493,22 @@ public class Damager {
 						spiked = true;
 					}
 					break;
+				case (int)ProjIds.Uppercut:
+					character.vel.y = -180;
+					spiked = true; 
+					break;
+				case (int)ProjIds.NoiseCrush:
+					spiked = true;
+					break;
+				case (int)ProjIds.FlameBlast:
+					spiked = true;
+					break;
+				case (int)ProjIds.HardKnuckle:
+					spiked = true;
+					break;
+				case (int)ProjIds.SparkShock:
+					spiked = true;
+					break;
 				case (int)ProjIds.FlameMOil:
 					character.addOilTime(owner, 8);
 					character.playSound("flamemOil");
@@ -597,7 +613,7 @@ public class Damager {
 				}
 			}
 
-			if (damage > 0) {
+			if (damage > 0 || flinch > 0) {
 				bool isShotgunIceAndFrozen = character.sprite.name.Contains("frozen") && weaponKillFeedIndex == 8;
 				if ((flinch > 0) && !isShotgunIceAndFrozen) {
 					victim?.playSound("hurt");
@@ -608,7 +624,8 @@ public class Damager {
 					if (projId == (int)ProjIds.GravityWellCharged) {
 						hurtDir = 0;
 					}
-					character.setHurt(hurtDir, flinch, spiked);
+
+					character.setHurt(hurtDir, flinch, spiked, character.vel.y != 0 ? character.vel.y : null);
 
 					//if (weaponKillFeedIndex == 18) {
 						//character.punchFlinchCooldown = Global.spf;

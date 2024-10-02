@@ -2,6 +2,7 @@
 using System.Linq;
 using Newtonsoft.Json;
 using ProtoBuf;
+using ProtoBuf.Serializers;
 
 namespace MMXOnline;
 
@@ -10,14 +11,16 @@ public class XLoadout {
 	[ProtoMember(1)] public int weapon1;    //0 indexed
 	[ProtoMember(2)] public int weapon2;
 	[ProtoMember(3)] public int weapon3;
-	[ProtoMember(4)] public int melee ;
-
+	[ProtoMember(4)] public int melee;
+	[ProtoMember(5)] public int[] set1 = new int[4];
+	
 	public static XLoadout getDefault() {
 		return new XLoadout {
 			weapon1 = 0,
 			weapon2 = 1,
 			weapon3 = 2,
-			melee = 1
+			melee = 1,
+			set1 = [1,1,1,1]
 		};
 	}
 
@@ -26,9 +29,9 @@ public class XLoadout {
 	}
 
 	public void validate() {
-		if (weapon1 < 0 || weapon1 > 24) weapon1 = 0;
-		if (weapon2 < 0 || weapon2 > 24) weapon2 = 0;
-		if (weapon3 < 0 || weapon3 > 24) weapon3 = 0;
+		if (weapon1 < 0 || weapon1 > 32) weapon1 = 0;
+		if (weapon2 < 0 || weapon2 > 32) weapon2 = 0;
+		if (weapon3 < 0 || weapon3 > 32) weapon3 = 0;
 
 		if ((weapon1 == weapon2 && weapon1 >= 0) ||
 			(weapon1 == weapon3 && weapon2 >= 0) ||
@@ -46,6 +49,17 @@ public class XLoadout {
 		indices.Add((byte)weapon1);
 		indices.Add((byte)weapon2);
 		indices.Add((byte)weapon3);
+
+		//This to check if we get normal buster or force armor one.
+		if (player.hasArmArmor(ArmorId.Force)) {
+			for (byte i = 0; i < indices.Count; i++) {
+				if (indices[i] == (byte)WeaponIds.Buster) {
+					indices.RemoveAt(i);
+					indices.Insert(i, (byte)WeaponIds.ForceBuster);
+				}
+			}
+		}
+
 		if (player.hasArmArmor(3)) indices.Add((int)WeaponIds.HyperBuster);
 		if (player.hasBodyArmor(2)) indices.Add((int)WeaponIds.GigaCrush);
 		if (player.hasUltimateArmor()) indices.Add((int)WeaponIds.NovaStrike);
@@ -299,7 +313,7 @@ public class SigmaLoadout {
 	[ProtoMember(5)] public int commandMode;
 
 	private int startMaverick { get { return (int)WeaponIds.ChillPenguin; } }
-	private int endMaverick { get { return 26; } }
+	private int endMaverick { get { return 27; } }
 
 	public List<int> getWeaponIndices() {
 		return new List<int>() { (int)WeaponIds.Sigma, maverick1 + startMaverick, maverick2 + startMaverick };

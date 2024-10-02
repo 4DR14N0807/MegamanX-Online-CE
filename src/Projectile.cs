@@ -21,6 +21,7 @@ public class Projectile : Actor {
 	public Weapon weapon;
 	public bool destroyOnHit = true;
 	public bool destroyOnHitWall = false;
+	public bool deflectable = true;
 	public bool reflectable = false;
 	public bool reflectableFBurner = false;
 	public int reflectCount;
@@ -33,7 +34,7 @@ public class Projectile : Actor {
 	public bool isReflectShield;
 	public bool isDeflectShield;
 	public bool shouldVortexSuck = true;
-	bool damagedOnce;
+	public bool damagedOnce;
 	//public int? destroyFrames;
 	public Player ownerPlayer;
 	public Actor? hitboxActor;
@@ -70,6 +71,9 @@ public class Projectile : Actor {
 	List<Point> dests = new();
 	int? destIndex;
 	float initWallCooldown;
+	//Plasma shot stuff.
+	public bool releasePlasma = false;
+	public bool hasReleasedPlasma = false; 
 	
 
 	public Projectile(
@@ -391,6 +395,8 @@ public class Projectile : Actor {
 						otherProj.owner.character.addDamageText("Clang!", 3);
 					}
 
+					if (otherProj is XGaeaShieldProj xgs) xgs.health -= 2;
+
 					if (other.hitData.hitPoint != null) {
 						new Anim(other.hitData.hitPoint.Value, "buster4_x3_muzzle", 1, owner.getNextActorNetId(), true, sendRpc: true);
 					}
@@ -473,6 +479,9 @@ public class Projectile : Actor {
 				damager.owner.alliance != otherProj.damager.owner.alliance
 			) {
 				if (deltaPos.x != 0 && Math.Sign(deltaPos.x) != otherProj.xDir) {
+					if (otherProj is XGaeaShieldProj xgs) {
+						xgs.applyDamage(damager.damage, damager.owner, this, weapon.index, projId);
+					}
 					deflect(otherProj.owner, sendRpc: true);
 					playSound("sigmaSaberBlock", forcePlay: false, sendRpc: true);
 				}
@@ -610,6 +619,29 @@ public class Projectile : Actor {
 	// it needs to be in the Damager class as a "on<PROJ>Damage() method"
 	// Also, this runs on every hit regardless of hit cooldown, so if hit cooldown must be factored, use onDamage
 	public virtual void onHitDamagable(IDamagable damagable) {
+		if (ownedByLocalPlayer && releasePlasma && !hasReleasedPlasma) {
+			float xThreshold = 10;
+			Point targetPos = damagable.actor().getCenterPos();
+			float distToTarget = MathF.Abs(targetPos.x - pos.x);
+	
+			int spawnXDir = xDir;
+			if (deltaPos.x != 0) {
+				spawnXDir = Math.Sign(deltaPos.x);
+			} else if (distToTarget != 0) {
+				spawnXDir = Math.Sign(targetPos.x - pos.x);
+			} else if (MathF.Abs(xDir) != 0) {
+				spawnXDir = Math.Sign(xDir);
+			} else {
+				spawnXDir = Helpers.randomRange(0, 1) != 0 ? 1 : -1;
+			}
+			Point spawnPoint = pos;
+			if (distToTarget > xThreshold) {
+				spawnPoint = new Point(targetPos.x + xThreshold * Math.Sign(pos.x - targetPos.x), pos.y);
+			}
+			new BusterForcePlasmaHit(0, weapon, spawnPoint, spawnXDir, owner, owner.getNextActorNetId());
+			hasReleasedPlasma = true;
+		}
+		
 		if (destroyOnHit) {
 			damagedOnce = true;
 			destroySelf(fadeSprite, fadeSound, favorDefenderProjDestroy: isDefenderFavoredAndOwner());

@@ -11,25 +11,29 @@ public class SigmaWeaponCursor {
 	}
 
 	public int startOffset() {
-		if (index < 9) return 0;
-		else if (index >= 9 && index <= 17) return 9;
-		else return 18;
+		if (index is < 9) return 0;
+		else if (index is >= 9 and <= 17) return 9;
+		else if (index is >= 18 and <= 26) return 18;
+		else return 27;
 	}
 
 	public int numWeapons() {
+		if (index is >= 27) return 1;
 		return 9;
 	}
 
 	public void cycleLeft() {
-		if (index < 9) index = 18;
-		else if (index >= 9 && index <= 17) index = 0;
-		else if (index > 17) index = 9;
+		if (index is < 9) index = 27;
+		else if (index is >= 9 and <= 17) index = 0;
+		else if (index is > 17) index = 9;
+		else index = 18;
 	}
 
 	public void cycleRight() {
-		if (index < 9) index = 9;
-		else if (index >= 9 && index <= 17) index = 18;
-		else if (index > 17) index = 0;
+		if (index is < 9) index = 9;
+		else if (index is >= 9 and <= 17) index = 18;
+		else if (index is > 17) index = 27;
+		else index = 0;
 	}
 }
 
@@ -72,7 +76,7 @@ public class SelectSigmaWeaponMenu : IMainMenu {
 			//Helpers.menuLeftRightInc(ref cursors[selCursorIndex].index, 0, 8, playSound: true);
 			if (Global.input.isPressedMenu(Control.MenuLeft)) {
 				cursors[selCursorIndex].index--;
-				if (cursors[selCursorIndex].index == -1) cursors[selCursorIndex].index = 26;
+				if (cursors[selCursorIndex].index == -1) cursors[selCursorIndex].index = 27;
 				else if (cursors[selCursorIndex].index == 8) cursors[selCursorIndex].index = 8;
 				else if (cursors[selCursorIndex].index == 17) cursors[selCursorIndex].index = 17;
 				Global.playSound("menuX2");
@@ -80,7 +84,7 @@ public class SelectSigmaWeaponMenu : IMainMenu {
 				cursors[selCursorIndex].index++;
 				if (cursors[selCursorIndex].index == 9) cursors[selCursorIndex].index = 9;
 				else if (cursors[selCursorIndex].index == 18) cursors[selCursorIndex].index = 18;
-				else if (cursors[selCursorIndex].index == 27) cursors[selCursorIndex].index = 0;
+				else if (cursors[selCursorIndex].index > 27) cursors[selCursorIndex].index = 0;
 				Global.playSound("menuX2");
 			}
 			if (Global.input.isPressedMenu(Control.WeaponLeft)) {
@@ -355,6 +359,7 @@ public class SelectSigmaWeaponMenu : IMainMenu {
 			24 => "Gravity Beetle",
 			25 => "Blast Hornet",
 			26 => "Dr. Doppler",
+			27 => "Snail-Chan",
 			_ => ""
 		};
 	}

@@ -1707,6 +1707,7 @@ public enum CommandGrabScenario {
 	BeetleLiftGrab,
 	CrushCGrab,
 	BBuffaloGrab,
+	RockF2Grab,
 	Release,
 }
 

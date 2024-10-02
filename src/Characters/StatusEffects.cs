@@ -10,8 +10,9 @@ public class Hurt : CharState {
 	public float hurtSpeed;
 	public float flinchTime;
 	public bool spiked;
+	public float? pushVel;
 
-	public Hurt(int dir, int flinchFrames, bool spiked = false, float? oldComboPos = null) : base("hurt") {
+	public Hurt(int dir, int flinchFrames, bool spiked = false, float? oldComboPos = null, float? pushVel = null) : base("hurt") {
 		this.flinchTime = flinchFrames;
 		hurtDir = dir;
 		hurtSpeed = dir * 1.6f;
@@ -21,6 +22,7 @@ public class Hurt : CharState {
 			isCombo = true;
 			flinchYPos = oldComboPos.Value;
 		}
+		if (pushVel != null) this.pushVel = pushVel.Value;
 	}
 
 	public bool isMiniFlinch() {
@@ -59,6 +61,10 @@ public class Hurt : CharState {
 		if (hurtSpeed != 0) {
 			hurtSpeed = Helpers.toZero(hurtSpeed, 1.6f / flinchTime  * Global.speedMul, hurtDir);
 			character.move(new Point(hurtSpeed * 60f, 0));
+		}
+
+		if (spiked && pushVel != null) {
+			character.move(new Point(0, pushVel.Value));
 		}
 
 		if (isMiniFlinch()) {

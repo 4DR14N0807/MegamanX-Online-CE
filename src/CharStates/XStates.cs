@@ -6,6 +6,7 @@ public class XHover : CharState {
 	int startXDir;
 	public XHover() : base("hover", "hover_shoot", "", "") {
 		airMove = true;
+		attackCtrl = true;
 	}
 
 	public override void update() {

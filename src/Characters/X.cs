@@ -25,6 +25,18 @@ public partial class MegamanX : Character {
 	public FrostShieldProjCharged? chargedFrostShield;
 	public TunnelFangProjCharged? chargedTunnelFang;
 	public GravityWellProj? gravityWell;
+	public AimingLaserCursor? aLaserCursor;
+	public Anim? aLaserHud;
+	public List<Character> aLaserTargets = new();
+	public AimingLaserProj? aLaserProj;
+	public AimingLaserChargedProj? aLaserChargedProj;
+	public bool laserCheck;
+	public SoulBodyHologram? sBodyHologram;
+	public SoulBodyClone? sBodyClone;
+	public DoubleCycloneChargedSpawn? dCycloneSpawn;
+	public CommandSelection? cSelect;
+	public CommandSelectionMenu? cSelectMenu;
+	public XGaeaShieldProj? XGaeaShield;
 	public int totalChipHealAmount;
 	public const int maxTotalChipHealAmount = 32;
 	public int unpoShotCount {
@@ -87,6 +99,13 @@ public partial class MegamanX : Character {
 
 	public Buster staticBusterWeapon = new();
 	public Buster specialBuster => (player.weapons.OfType<Buster>().FirstOrDefault() ?? staticBusterWeapon);
+	//Stock Buster stuff.
+	public const float stock1Time = 30;
+	public const float stock2Time = 80;
+	public const float stock3Time = 130;
+	public const float stock4Time = 180;
+	public float stockChargeTime;
+	public int stockCount;
 
 	public MegamanX(
 		Player player, float x, float y, int xDir,
@@ -102,24 +121,88 @@ public partial class MegamanX : Character {
 		if (isHyperX && (charState is Dash || charState is AirDash)) {
 			return false;
 		}
+
+		if (aLaserProj != null) return false;
+		if (aLaserChargedProj != null) return false;
+		if (sBodyClone != null && this is not SoulBodyClone) return false;
+
 		return isSpecialBuster() &&
 			!Buster.isNormalBuster(player.weapon) &&
 			!stingActive &&
-			player.armorFlag == 0 &&
+			(player.armorFlag == 0 || player.hasAllX4Armor())&&
 			streamCooldown == 0;
 	}
 
 	public bool canShootSpecialBusterOnBuster() {
-		return isSpecialBuster() && !stingActive && player.armorFlag == 0;
+		return isSpecialBuster() && !stingActive && 
+		(player.armorFlag == 0 || player.hasAllX4Armor());
 	}
 
 	public void refillUnpoBuster() {
 		if (player.weapons.Count > 0) player.weapons[0].ammo = player.weapons[0].maxAmmo;
 	}
 
+	public virtual bool canUseArmors() {
+		return true;
+	}
+
+	/*public override bool isSoftLocked() {
+		if (this is not SoulBodyClone && sBodyClone != null) return true;
+		return base.isSoftLocked();
+	}*/
+
+	public virtual bool canUseXSaber() {
+		return charState.attackCtrl &&
+			(isSpecialSaber() || isHyperX) && canShoot() &&
+			canChangeWeapons() && player.armorFlag == 0 &&
+			!isAttacking() && !isInvisible() &&
+			!charState.isGrabbing && xSaberCooldown <= 0;
+	}
+
 	public override void update() {
 		fgMotion = false;
 		base.update();
+
+		if (ownedByLocalPlayer) {
+			if (player.weapon is AimingLaser al) {
+				laserCheck = false;
+				if (aLaserHud == null) {
+					for (int i = 0; i < 11; i++) {
+						new AimingLaserHud(pos, xDir, player.getNextActorNetId(), player, i);
+					}
+				} 
+				if (aLaserCursor == null && aLaserChargedProj == null)  {
+					aLaserCursor = new AimingLaserCursor(
+						new AimingLaser(), getShootPos(), getShootXDir(), player, player.getNextActorNetId()
+					);
+				}
+				
+				foreach(var target in aLaserTargets) {
+					target.isTargetByALaser = true;
+				}
+
+				if (aLaserProj != null || aLaserChargedProj != null) changeSprite("mmx_" + charState.shootSprite, false);			
+			} else if (player.weapon is not AimingLaser || charState is Die) {
+				if (aLaserTargets.Count > 0 && !laserCheck) {
+					for(int i = 0; i < aLaserTargets.Count; i++) {
+						aLaserTargets[i].isTargetByALaser = false;
+						aLaserTargets.RemoveAt(i);
+					}
+					laserCheck = true;
+				}
+			}
+
+			if (aLaserTargets.Count > 0) {
+				foreach(Character targ in aLaserTargets) {
+					targ.targetTime++;
+
+					if (targ.targetTime >= 180) {
+						targ.targetTime = 0;
+						targ.isTargetByALaser = false;
+					}
+				}
+			}
+		}
 
 		if (stockedCharge) {
 			addRenderEffect(RenderEffectType.ChargePink, 0.033333f, 0.1f);
@@ -338,14 +421,8 @@ public partial class MegamanX : Character {
 			}
 		}
 
-		if (charState.attackCtrl &&
-			(isSpecialSaber() || isHyperX) && canShoot() &&
-			canChangeWeapons() && player.armorFlag == 0 &&
-			player.input.isPressed(Control.Special1, player) &&
-			!isAttacking() && !isInvisible() &&
-			!charState.isGrabbing
-		) {
-			if (xSaberCooldown == 0) {
+		if (canUseXSaber()) {
+			if (player.input.isPressed(Control.Special1, player)) {
 				xSaberCooldown = 1f;
 				changeState(new X6SaberState(grounded), true);
 				return;
@@ -472,6 +549,9 @@ public partial class MegamanX : Character {
 			} else {
 				unpoChargeControls();
 			}
+
+			if (player.hasArmArmor(ArmorId.Force)) stockChargeControls();
+
 		} else if (
 			charState is Dash || charState is AirDash ||
 			charState is XUPParryMeleeState || charState is XUPParryProjState ||
@@ -484,7 +564,7 @@ public partial class MegamanX : Character {
 
 		isShootingSpecialBuster = false;
 
-		if (chargedSpinningBlade != null || chargedFrostShield != null || chargedTunnelFang != null) {
+		if (chargedSpinningBlade != null || chargedFrostShield != null || chargedTunnelFang != null || XGaeaShield != null) {
 			changeSprite("mmx_" + charState.shootSprite, true);
 		}
 
@@ -562,7 +642,58 @@ public partial class MegamanX : Character {
 		}
 	}
 
+	public bool hasHelmetQuick(int type) {
+		if (type == 0) return true;
+		return player.isHeadArmorPurchased(type);
+	}
+	public bool hasBodyQuick(int type) {
+		if (type == 0) return true;
+		return player.isBodyArmorPurchased(type);
+	}
+	public bool hasArmQuick(int type) {
+		if (type == 0) return true;
+		return player.isArmArmorPurchased(type);
+	}
+	public bool hasBootsQuick(int type) {
+		if (type == 0) return true;
+		return player.isBootsArmorPurchased(type);
+	}
+
+	public void equipArmor(int set) {
+		var armorSet = Options.main.xLoadout.set1;
+		int parts = 0;
+
+		if (hasHelmetQuick(armorSet[(int)ArmorP.Helm])) 
+		{
+			UpgradeArmorMenu.upgradeHelmetArmor(player, armorSet[(int)ArmorP.Helm]);
+			parts++;
+		}
+		if (hasBodyQuick(armorSet[(int)ArmorP.Body])) 
+		{
+			UpgradeArmorMenu.upgradeBodyArmor(player, armorSet[(int)ArmorP.Body]);
+			parts++;
+		}
+		if (hasArmQuick(armorSet[(int)ArmorP.Arm])) 
+		{
+			UpgradeArmorMenu.upgradeArmArmor(player, armorSet[(int)ArmorP.Arm]);
+			parts++;
+		}
+		if (hasBootsQuick(armorSet[(int)ArmorP.Boots])) 
+		{
+			UpgradeArmorMenu.upgradeBootsArmor(player, armorSet[(int)ArmorP.Boots]);
+			parts++;
+		}
+
+		if (parts > 0) Global.playSound("ching");
+	}
+
 	public override bool normalCtrl() {
+		if (player.input.isHeld(Control.Special1, player)) {
+			int dir = player.input.getTestDir(player);
+			if (dir >= 0) equipArmor(dir);
+		}
+
+
 		if (!grounded) {
 			if (player.dashPressed(out string dashControl) && canAirDash() && canDash() && flag == null) {
 				CharState dashState;
@@ -587,7 +718,7 @@ public partial class MegamanX : Character {
 				changeState(new Jump());
 				return true;
 			}
-			if (!player.isAI && player.hasUltimateArmor() &&
+			if (!player.isAI && (player.hasUltimateArmor() || player.hasBootsArmor(ArmorId.Force)) &&
 				player.input.isPressed(Control.Jump, player) &&
 				canJump() && !isDashing && canAirDash() && flag == null
 			) {
@@ -664,6 +795,24 @@ public partial class MegamanX : Character {
 			RPC.playerToggle.sendRpc(
 				player.id, stockOrUnstock ? RPCToggleType.StockSaber : RPCToggleType.UnstockSaber
 			);
+		}
+	}
+
+	public void stockChargeControls() {
+		if (chargeButtonHeld() && canCharge()) {
+			stockChargeTime++;
+			int stocks;
+
+			if (stockChargeTime is < stock1Time) stocks = 0;
+			else if (stockChargeTime is >= stock1Time and < stock2Time) stocks = 1;
+			else if (stockChargeTime is >= stock2Time and < stock3Time) stocks = 2;
+			else if (stockChargeTime is >= stock3Time and < stock4Time) stocks = 3;
+			else if (stockChargeTime is >= stock4Time) stocks = 4;
+			else stocks = -1;
+
+			if (stocks > stockCount) stockCount = stocks;
+		} else {
+			stockChargeTime = 0;
 		}
 	}
 
@@ -1097,7 +1246,7 @@ public partial class MegamanX : Character {
 	}
 
 	public override Projectile? getProjFromHitbox(Collider hitbox, Point centerPoint) {
-		Projectile? proj = null;
+		Projectile? proj = null!;
 
 		if (sprite.name.Contains("beam_saber") && sprite.name.Contains("2")) {
 			float overrideDamage = 3;
@@ -1106,7 +1255,10 @@ public partial class MegamanX : Character {
 		} else if (sprite.name.Contains("beam_saber")) {
 			proj = new GenericMeleeProj(new XSaber(player), centerPoint, ProjIds.XSaber, player);
 		} else if (sprite.name.Contains("nova_strike")) {
-			proj = new GenericMeleeProj(new NovaStrike(player), centerPoint, ProjIds.NovaStrike, player);
+			Weapon wep = hasUltimateArmor ? new NovaStrike(player) : new ForceNovaStrike(player);
+			ProjIds id = hasUltimateArmor ? ProjIds.NovaStrike : ProjIds.ForceNovaStrike;
+
+			proj = new GenericMeleeProj(wep, centerPoint, id, player);
 		} else if (sprite.name.Contains("speedburner")) {
 			proj = new GenericMeleeProj(new SpeedBurner(player), centerPoint, ProjIds.SpeedBurnerCharged, player);
 		} else if (sprite.name.Contains("shoryuken")) {
@@ -1120,7 +1272,7 @@ public partial class MegamanX : Character {
 		} else if (sprite.name.Contains("unpo_parry_start")) {
 			proj = new GenericMeleeProj(new XUPParry(), centerPoint, ProjIds.UPParryBlock, player, 0, 0, 1);
 		}
-
+ 
 		return proj;
 	}
 
@@ -1156,6 +1308,9 @@ public partial class MegamanX : Character {
 		if (chargedFrostShield != null) return false;
 		if (chargedTunnelFang != null) return false;
 		if (invulnTime > 0) return false;
+		if (aLaserProj != null) return false;
+		if (aLaserChargedProj != null) return false;
+		if (sBodyClone != null && this is not SoulBodyClone) return false;
 
 		return base.canShoot();
 	}
@@ -1168,6 +1323,8 @@ public partial class MegamanX : Character {
 		if (charState is GravityWellChargedState) return false;
 		if (player.weapon is TriadThunder triadThunder && triadThunder.shootTime > 0.75f) return false;
 		if (charState is XRevive || charState is XReviveStart) return false;
+		if (aLaserProj != null) return false;
+		if (aLaserChargedProj != null) return false;
 
 		return base.canChangeWeapons();
 	}
@@ -1264,7 +1421,6 @@ public partial class MegamanX : Character {
 		beeSwarm?.destroy();
 		destroyBusterProjs();
 		setShootRaySplasher(false);
-
 		player.removeOwnedMines();
 		player.removeOwnedTurrets();
 
@@ -1340,6 +1496,7 @@ public partial class MegamanX : Character {
 
 	public override void onFlinchOrStun(CharState newState) {
 		strikeChainProj?.destroySelf();
+		sBodyClone?.destroySelf();
 		if (newState is not Hurt hurtState) {
 			beeSwarm?.destroy();
 		} else {
@@ -1373,6 +1530,17 @@ public partial class MegamanX : Character {
 		return dashedInAir == 0 || (dashedInAir == 1 && player.hasChip(0));
 	}
 
+	public override bool canTurn() {
+		return charState is not XHover && base.canTurn();
+	}
+
+	public override Point getCamCenterPos(bool ignoreZoom = false) {
+		if (sBodyClone != null) {
+			return sBodyClone.getCenterPos();
+		}
+		return base.getCamCenterPos(ignoreZoom);
+	}
+
 	public override string getSprite(string spriteName) {
 		return "mmx_" + spriteName;
 	}
@@ -1393,6 +1561,9 @@ public partial class MegamanX : Character {
 		}
 		if (index == (int)WeaponIds.HyperBuster && ownedByLocalPlayer) {
 			index = player.weapons[player.hyperChargeSlot].index;
+		}
+		if (index == (int)WeaponIds.CommandSelection && cSelect?.weapon != null) {
+			index = cSelect.weapon.index;
 		}
 		if (player.hasGoldenArmor()) {
 			index = 25;

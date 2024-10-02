@@ -647,8 +647,10 @@ public class Crouch : CharState {
 			character.xDir = dpadXDir;
 		}
 
+		string endSprite = character is RockF2 ? "crouch_end" : "crouch_start";
+
 		if (!character.grounded || !player.isCrouchHeld()) {
-			character.changeToIdleOrFall("crouch_start");
+			character.changeToIdleOrFall(endSprite);
 			return;
 		}
 		if (Global.level.gameMode.isOver) {
@@ -1291,6 +1293,7 @@ public class Taunt : CharState {
 	float tauntTime = 1;
 	Anim? zeroching;
 	public Taunt() : base("win") {
+		normalCtrl = true;
 	}
 
 	public override void onEnter(CharState oldState) {

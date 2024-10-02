@@ -10,6 +10,7 @@ namespace MMXOnline;
 public partial class Player {
 	public Input input;
 	public Character character;
+	public SoulBodyClone sClone;
 	public Character lastCharacter;
 	public bool ownedByLocalPlayer;
 	public int? awakenedCurrencyEnd;
@@ -209,6 +210,7 @@ public partial class Player {
 		{ (int)CharIds.PunchyZero, new List<SubTank>() },
 		{ (int)CharIds.BusterZero, new List<SubTank>() },
 		{ (int)CharIds.Rock, new List<SubTank>() },
+		{ (int)CharIds.RockF2, new List<SubTank>() },
 	};
 	// Heart tanks
 	public Dictionary<int, int> charHeartTanks = new Dictionary<int, int>(){
@@ -220,6 +222,7 @@ public partial class Player {
 		{ (int)CharIds.PunchyZero, 0 },
 		{ (int)CharIds.BusterZero, 0 },
 		{ (int)CharIds.Rock, 0 },
+		{ (int)CharIds.RockF2, 0 },
 	};
 	// Getter functions.
 	public List<SubTank> subtanks {
@@ -232,7 +235,7 @@ public partial class Player {
 	}
 
 	// Currency
-	public const int maxCharCurrencyId = 10;
+	public const int maxCharCurrencyId = 12;
 	public static int curMul = Helpers.randomRange(2, 8);
 	public int[] charCurrencyBackup = new int[maxCharCurrencyId];
 	public int[] charCurrency = new int[maxCharCurrencyId];
@@ -440,10 +443,13 @@ public partial class Player {
 	public bool suicided;
 
 	ushort savedArmorFlag;
-	public bool[] headArmorsPurchased = new bool[] { false, false, false };
-	public bool[] bodyArmorsPurchased = new bool[] { false, false, false };
-	public bool[] armArmorsPurchased = new bool[] { false, false, false };
-	public bool[] bootsArmorsPurchased = new bool[] { false, false, false };
+	public bool[] headArmorsPurchased = new bool[20];
+
+	public bool[] bodyArmorsPurchased = new bool[20];
+
+	public bool[] armArmorsPurchased = new bool[20];
+
+	public bool[] bootsArmorsPurchased = new bool[20];
 
 	public float lastMashAmount;
 	public int lastMashAmountSetFrame;
@@ -1128,6 +1134,11 @@ public partial class Player {
 					this, pos.x, pos.y, xDir,
 					false, charNetId, ownedByLocalPlayer
 				);
+			} else if (charNum == (int)CharIds.RockF2) {
+				character = new RockF2(
+					this, pos.x, pos.y, xDir,
+					false, charNetId, ownedByLocalPlayer
+				);
 			} else {
 				throw new Exception("Error: Non-valid char ID: " + charNum);
 			}
@@ -1681,7 +1692,15 @@ public partial class Player {
 	}
 
 	public bool hasAllX3Armor() {
-		return bodyArmorNum >= 3 && bootsArmorNum >= 3 && armArmorNum >= 3 && helmetArmorNum >= 3;
+		return bodyArmorNum == 3 && bootsArmorNum == 3 && armArmorNum == 3 && helmetArmorNum == 3;
+	}
+	
+	public bool hasAllX4Armor() {
+		return 
+		bodyArmorNum == (int)ArmorId.Force &&
+		bootsArmorNum == (int)ArmorId.Force &&
+		helmetArmorNum == (int)ArmorId.Force &&
+		(armArmorNum is (int)ArmorId.Force or (int)ArmorId.Force + 1);
 	}
 
 	public bool canUpgradeGoldenX() {
@@ -1852,6 +1871,25 @@ public partial class Player {
 			return Global.level.server.customMatchSettings.startCurrency;
 		}
 		return 3;
+	}
+
+	public void onKillEffects() {
+		if (!ownedByLocalPlayer) {
+			return; 
+		}
+		if (isX && character != null) {
+			if (hasHelmetArmor(ArmorId.Force)) {
+				foreach (Weapon weapon in weapons) {
+					if (weapon is HyperBuster || weapon is GigaCrush ||
+						weapon is NovaStrike || weapon is ForceNovaStrike 
+						
+					) {
+						continue;
+					}
+					weapon.addAmmoPercentHeal(25);
+				}
+			}
+		}
 	}
 
 	public int getRespawnTime() {
@@ -2202,20 +2240,36 @@ public partial class Player {
 
 	// 0000 0000 0000 0000 [boots][body][helmet][arm]
 	// 0000 = none, 0001 = x1, 0010 = x2, 0011 = x3, 1111 = chip
-	public static int getArmorNum(int armorFlag, int armorIndex, bool isChipCheck) {
-		List<string> bits = Convert.ToString(armorFlag, 2).Select(s => s.ToString()).ToList();
-		while (bits.Count < 16) {
+	public static int getArmorNum(int armorFlag, int armorIndex, bool isChipCheck = false)
+	{
+		List<string> bits = (from s in Convert.ToString(armorFlag, 2)
+			select s.ToString()).ToList();
+		while (bits.Count < 16)
+		{
 			bits.Insert(0, "0");
 		}
-
 		string bitStr = "";
-		if (armorIndex == 0) bitStr = bits[0] + bits[1] + bits[2] + bits[3];
-		if (armorIndex == 1) bitStr = bits[4] + bits[5] + bits[6] + bits[7];
-		if (armorIndex == 2) bitStr = bits[8] + bits[9] + bits[10] + bits[11];
-		if (armorIndex == 3) bitStr = bits[12] + bits[13] + bits[14] + bits[15];
-
+		if (armorIndex == 0)
+		{
+			bitStr = bits[0] + bits[1] + bits[2] + bits[3];
+		}
+		if (armorIndex == 1)
+		{
+			bitStr = bits[4] + bits[5] + bits[6] + bits[7];
+		}
+		if (armorIndex == 2)
+		{
+			bitStr = bits[8] + bits[9] + bits[10] + bits[11];
+		}
+		if (armorIndex == 3)
+		{
+			bitStr = bits[12] + bits[13] + bits[14] + bits[15];
+		}
 		int retVal = Convert.ToInt32(bitStr, 2);
-		if (retVal > 3 && !isChipCheck) retVal = 3;
+		if (retVal == 15 && !isChipCheck)
+		{
+			retVal = 3;
+		}
 		return retVal;
 	}
 
@@ -2243,23 +2297,77 @@ public partial class Player {
 		setArmorNum(armorIndex, 0);
 	}
 
+	public bool canOverclock(ArmorP arg) {
+		if (character != null && isX && !isDisguisedAxl
+			&& !(character.charState is Die) && !Global.level.is1v1() && !hasUltimateArmor()
+			&& Player.getArmorNum(armorFlag, (int)arg) == (int)ArmorId.Xtreme
+			&& character.overclockTime[(int)arg] <= 0
+		) {
+			return currency >= overclockPrice();
+		}
+		return false;
+	}
+
+	public int overclockPrice() {
+		//if (Global.level.isHyperDM()) { return 0; }
+		/*
+		int hyperCount = 0;
+		if (character != null) {
+			for (int i = 0; i < 4; i++) {
+				if (character.hasOverclock((ArmorP)i)) hyperCount++;
+			}
+		}
+		if (hyperCount >= 3 && chipPrice() < 2) {
+			return 2;
+		}
+		*/
+		return chipPrice();
+	}
+
+	public int chipPrice() {
+		int chipCount = 0;
+		if (character != null) {
+			for (int i = 0; i < 4; i++) {
+				if (character.chipPucrashed[i]) chipCount++;
+			}
+		}
+		if (chipCount == 0) return 2;
+		return 1;
+	}
+
 	public bool hasAnyChip() {
 		return hasChip(0) || hasChip(1) || hasChip(2) || hasChip(3);
 	}
 
 	public bool hasChip(int armorIndex) {
-		if (!hasAllX3Armor()) return false;
-		return getArmorNum(armorFlag, armorIndex, true) == 15;
+		//if (isRaidBoss) { return true; }
+		if (getArmorNum(armorFlag, armorIndex) != 3)
+		{
+			return false;
+		}
+		//if (Global.level.isHyperDM()) { return true; }
+		return getArmorNum(armorFlag, armorIndex, isChipCheck: true) == 15;
 	}
 
-	public void setChipNum(int armorIndex, bool remove) {
-		if (!remove) {
-			usedChipOnce = true;
+	public bool hasChip(ArmorP armorIndex) {
+		//if (isRaidBoss) { return true; }
+		if (getArmorNum(armorFlag, (int)armorIndex) != 3)
+		{
+			return false;
 		}
-		setArmorNum(0, 3);
-		setArmorNum(1, 3);
-		setArmorNum(2, 3);
-		setArmorNum(3, 3);
+		//if (Global.level.isHyperDM()) { return true; }
+		return getArmorNum(armorFlag, (int)armorIndex, isChipCheck: true) == 15;
+	}
+
+
+	public void setChipNum(int armorIndex, bool remove) {
+		if (armorIndex == 3) {
+			/*if (remove) {
+				removeHyperCharge();
+			} else {
+				addHyperCharge();
+			}*/
+		}
 		setArmorNum(armorIndex, remove ? 3 : 15);
 	}
 
@@ -2309,6 +2417,8 @@ public partial class Player {
 		set { setArmorNum(3, value); }
 	}
 
+	public bool[] altArmor = new bool[14];
+
 	public bool hasBootsArmor(ArmorId armorId) { return bootsArmorNum == (int)armorId; }
 	public bool hasBodyArmor(ArmorId armorId) { return bodyArmorNum == (int)armorId; }
 	public bool hasHelmetArmor(ArmorId armorId) { return helmetArmorNum == (int)armorId; }
@@ -2318,7 +2428,10 @@ public partial class Player {
 	public bool hasBodyArmor(int xGame) { return bodyArmorNum == xGame; }
 	public bool hasHelmetArmor(int xGame) { return helmetArmorNum == xGame; }
 	public bool hasArmArmor(int xGame) { return armArmorNum == xGame; }
-
+	public bool hasAltArmor(ArmorP armorP) { return altArmor[(int)armorP]; }
+	public bool hasPlasma() {
+		return armArmorNum == (int)ArmorId.Force + 1;
+	}
 	public bool isHeadArmorPurchased(int xGame) { return headArmorsPurchased[xGame - 1]; }
 	public bool isBodyArmorPurchased(int xGame) { return bodyArmorsPurchased[xGame - 1]; }
 	public bool isArmArmorPurchased(int xGame) { return armArmorsPurchased[xGame - 1]; }

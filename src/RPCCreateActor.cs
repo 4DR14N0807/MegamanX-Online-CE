@@ -46,6 +46,7 @@ public enum NetActorCreateId {
 	GravityBeetle,
 	BlastHornet,
 	DrDoppler,
+	SnailChan,
 	RideChaser,
 }
 
@@ -152,6 +153,8 @@ public class RPCCreateActor : RPC {
 			new BlastHornet(player, pos, pos, xDir, netProjByte, false);
 		} else if (createId == (int)NetActorCreateId.DrDoppler) {
 			new DrDoppler(player, pos, pos, xDir, netProjByte, false);
+		} else if (createId == (int)NetActorCreateId.SnailChan) {
+			new SnailChan(player, pos, pos, xDir, netProjByte, false);
 		} else if (createId == (int)NetActorCreateId.RideChaser) {
 			new RideChaser(player, pos, 0, netProjByte, false);
 		}

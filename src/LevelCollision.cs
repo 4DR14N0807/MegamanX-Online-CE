@@ -263,6 +263,10 @@ public partial class Level {
 			}
 		}
 
+		if (!actorCollider.isTrigger && gameObject is Actor { isSolidWall: true }) {
+			return false;
+		}
+
 		if (actorCollider.disabled || gameObjectCollider.disabled) return false;
 		if (actorCollider.isTrigger || gameObjectCollider.isTrigger) return true;
 
@@ -632,7 +636,8 @@ public partial class Level {
 	) {
 		List<Type> filters = new List<Type>() {
 			typeof(Character), typeof(Maverick),
-			typeof(RaySplasher), typeof(Mechaniloid)
+			typeof(RaySplasher), typeof(Mechaniloid),
+			typeof(SoulBodyHologram)
 		};
 		var targets = getTargets(
 			pos, alliance, checkWalls, aMaxDist,

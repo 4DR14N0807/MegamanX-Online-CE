@@ -4,7 +4,9 @@ public enum ArmorId {
 	None = 0,
 	Light = 1,
 	Giga = 2,
-	Max = 3
+	Max = 3,
+	Force = 4,
+	Xtreme = 14
 }
 
 public enum ArmorP {
@@ -19,7 +21,10 @@ public enum SpecialStateIds {
 	AxlRoll,
 	HyorogaStart,
 	XTeleport,
-	PZeroParry
+	PZeroParry,
+	ForceNovaStrike,
+	XtremeDash,
+	Dodge,
 }
 
 public static class ArmorParts {
@@ -29,4 +34,14 @@ public static class ArmorParts {
 		"Helm",
 		"Arm"
 	};
+}
+
+
+public enum RockF2WeaponIds {
+	None = -1,
+	QuickBoomerang,
+	Slide,
+	FlameSword,
+	Uppercut,
+	Buster,
 }

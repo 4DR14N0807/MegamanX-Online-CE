@@ -697,6 +697,14 @@ public class Input {
 		return yDir;
 	}
 
+	public int getTestDir(Player player) {
+		if (isPressed(Control.Up, player)) return 0;
+		if (isPressed(Control.Left, player)) return 1;
+		if (isPressed(Control.Right, player)) return 2;
+		if (isPressed(Control.Down, player)) return 3;
+		return -1;
+	}
+
 #if WINDOWS
 	[DllImport(
 		"user32.dll", CharSet = CharSet.Auto,

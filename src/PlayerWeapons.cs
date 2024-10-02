@@ -8,6 +8,7 @@ namespace MMXOnline;
 public partial class Player {
 	public List<Weapon> weapons = new();
 	public List<Weapon> oldWeapons = new();
+	public List<Weapon> ownerWeapons = new();
 
 	public Weapon nonOwnerWeapon;
 
@@ -301,7 +302,12 @@ label:
 		weapons.Clear();
 	}
 
+	public void clearXWeapons() {
+		preXWeapons = new List<Weapon>(weapons);
+	}
+
 	public List<Weapon>? preSigmaReviveWeapons;
+	public List<Weapon> preXWeapons;
 	public void configureWeapons() {
 		if (!ownedByLocalPlayer) {
 			return;
@@ -320,9 +326,13 @@ label:
 
 		if (isX) {
 			if (Global.level.isTraining() && !Global.level.server.useLoadout) {
-				weapons = Weapon.getAllXWeapons().Select(w => w.clone()).ToList();
+				weapons = Weapon.getTrainingXWeapons().Select(w => w.clone()).ToList();
 				if (hasArmArmor(3)) weapons.Add(new HyperBuster());
 				if (hasBodyArmor(2)) weapons.Add(new GigaCrush());
+				if (hasArmArmor((int)ArmorId.Force) || hasArmArmor((int)ArmorId.Force + 1)) {
+					addForceBuster();
+				}
+				if (hasBodyArmor(ArmorId.Force)) weapons.Add(new ForceNovaStrike(this));
 				if (hasUltimateArmor()) weapons.Add(new NovaStrike(this));
 			} else if (Global.level.is1v1()) {
 				if (xArmor1v1 == 1) {
@@ -500,6 +510,14 @@ label:
 		return weapons.Count - miscSlots;
 	}
 
+	public void saveOwnerWeapons() {
+		ownerWeapons = weapons;
+	}
+
+	public void LoadOwnerWeapons() {
+		weapons = ownerWeapons;
+	}
+
 	public void addGigaCrush() {
 		if (!weapons.Any(w => w is GigaCrush)) {
 			weapons.Add(new GigaCrush());
@@ -523,6 +541,42 @@ label:
 			weaponSlot = 0;
 		}
 		weapons.RemoveAll(w => w is NovaStrike);
+	}
+
+	public void addForceNovaStrike()
+	{
+		if (!weapons.Any((Weapon w) => w is ForceNovaStrike))
+		{
+			weapons.Add(new ForceNovaStrike(this));
+		}
+	}
+
+	public void removeForceNovaStrike()
+	{
+		if (weapon is ForceNovaStrike)
+		{
+			weaponSlot = 0;
+		}
+		weapons.RemoveAll((Weapon w) => w is ForceNovaStrike);
+	}
+
+	public void addForceBuster() {
+		for (int i = 0; i < weapons.Count; i++) {
+			if (weapons[i] is Buster) {
+				weapons.RemoveAt(i);
+				weapons.Insert(i, new ForceBuster());
+			}
+		}
+	}
+
+	public void removeForceBuster() {
+		for(int i = 0; i < weapons.Count; i++) {
+			if (weapons[i] is ForceBuster) {
+				if (weaponSlot == i) weaponSlot = 0;
+				weapons.RemoveAt(i);
+				weapons.Insert(i, new Buster());
+			}
+		}
 	}
 
 	public void removeHyperCharge() {

@@ -114,6 +114,8 @@ public class MaverickWeapon : Weapon {
 			maverick = new OverdriveOstrich(player, pos, destPos, xDir, player.getNextActorNetId(), true, sendRpc: true);
 		} else if (this is FakeZeroWeapon) {
 			maverick = new FakeZero(player, pos, destPos, xDir, player.getNextActorNetId(), true, sendRpc: true);
+		} else if (this is SnailChanWeapon) {
+			maverick = new SnailChan(player, pos, destPos, xDir, player.getNextActorNetId(), true, sendRpc: true);
 		}
 		  // X3
 		  else if (this is BlizzardBuffaloWeapon) {
@@ -303,6 +305,14 @@ public class CrystalSnailWeapon : MaverickWeapon {
 		index = (int)WeaponIds.CrystalSnail;
 		weaponSlotIndex = 81;
 		displayName = "Crystal Snail";
+	}
+}
+
+public class SnailChanWeapon : MaverickWeapon {
+	public SnailChanWeapon(Player? player) : base(player) {
+		index = (int)WeaponIds.SnailChan;
+		weaponSlotIndex = 81;
+		displayName = "Snail-Chan";
 	}
 }
 

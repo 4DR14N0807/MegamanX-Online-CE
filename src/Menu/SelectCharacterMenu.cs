@@ -35,8 +35,10 @@ public enum CharIds {
 	WolfSigma = 100,
 	ViralSigma,
 	KaiserSigma,
+	SoulBodyClone,
 	// Non-vanilla chars start here.
 	Rock = 10,
+	RockF2,
 }
 
 public class CharSelection {
@@ -62,6 +64,7 @@ public class CharSelection {
 		new CharSelection("Vile", 2, 1, 0, "menu_vile", 0),
 		new CharSelection("Axl", 3, 1, 0, "menu_axl", 0),
 		new CharSelection("Sigma", 4, 1, 0, "menu_sigma", sigmaIndex),
+		new CharSelection("Megaman", 11, 1, 0, "megaf2_idle", 0),
 		//new CharSelection("Rock", 10, 1, 0, "rock_idle", 0),
 	];
 

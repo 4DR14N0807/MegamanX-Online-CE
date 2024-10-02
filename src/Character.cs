@@ -54,6 +54,7 @@ public partial class Character : Actor, IDamagable {
 	public bool isCrystalized;
 	public bool insideCharacter;
 	public float invulnTime = 0;
+	public bool[] chipPucrashed = new bool[4];
 
 	public List<Trail> lastFiveTrailDraws = new List<Trail>();
 	public LoopingSound chargeSound;
@@ -136,6 +137,8 @@ public partial class Character : Actor, IDamagable {
 	public bool dropFlagUnlocked;
 	long originalZIndex;
 	bool viralOnce;
+	public Player threwOwner;
+	public bool threw;
 
 	// Status effects.
 	// Acid
@@ -162,6 +165,33 @@ public partial class Character : Actor, IDamagable {
 	public bool hasParasite { get { return parasiteTime > 0; } }
 	public float parasiteTime;
 	public float parasiteMashTime;
+
+	//Aiming Laser.
+	public Anim? aLaserTargetAnim;
+	public bool isTargetByALaser;
+	public float targetTime = 0;
+
+	// Overclock stuff
+	public float[] overclockTime = new float[4];
+	public const float overclockActiveTime = 40;
+
+	public const float overclockCooldownTime = 20;
+
+	public void enableOverclock(int arg) {
+		overclockTime[arg] = overclockActiveTime + overclockCooldownTime;
+	}
+
+	public float xtremeDashCooldown = 0f;
+
+	public float xtremeDashMaxCooldown = 2f;
+
+	public bool isInXtremeDash {
+		get {
+			return specialState == (int)SpecialStateIds.XtremeDash;
+		}
+	}
+
+	public int scannerDamageStacks = 0;
 	
 	// Disables status.
 	public float paralyzedTime;
@@ -239,9 +269,27 @@ public partial class Character : Actor, IDamagable {
 		chargeEffect = new ChargeEffect();
 		lastGravityWellDamager = player;
 	}
-
 	public override void onStart() {
 		base.onStart();
+	}
+
+	public bool hasOverclock(ArmorP arg) {
+		if (Global.level.isHyperMatch()) { return true; }
+		return overclockTime[(int)arg] > overclockCooldownTime;
+	}
+
+	public bool hasOverclock(int arg) {
+		if (Global.level.isHyperMatch()) { return true; }
+		return overclockTime[arg] > overclockCooldownTime;
+	}
+
+	public bool hasFullOverclock() {
+		if (Global.level.isHyperMatch()) { return true; }
+		if (hasOverclock(ArmorP.Boots) && hasOverclock(ArmorP.Body)
+			&& hasOverclock(ArmorP.Helm) &&  hasOverclock(ArmorP.Arm)) {
+			return true;
+		}
+		return false;
 	}
 
 	public void addVaccineTime(float time) {
@@ -502,7 +550,7 @@ public partial class Character : Actor, IDamagable {
 		return false;
 	}
 
-	public bool canTurn() {
+	public virtual bool canTurn() {
 		if (rideArmorPlatform != null) {
 			return false;
 		}
@@ -846,6 +894,21 @@ public partial class Character : Actor, IDamagable {
 			player.possesseeUpdate();
 		}
 
+		if (isTargetByALaser) {
+			if (aLaserTargetAnim == null) {
+				aLaserTargetAnim = new Anim(getCenterPos(), "aiming_laser_target", xDir, player.getNextActorNetId(), false, true);
+			}
+			else {
+				aLaserTargetAnim.changePos(getCenterPos());
+			}
+
+		} else {
+			if (aLaserTargetAnim != null) {
+				aLaserTargetAnim.destroySelf();
+				aLaserTargetAnim = null!;
+			}
+		}
+
 		if (flag != null) {
 			if (MathF.Abs(xPushVel) > 75) xPushVel = 75 * MathF.Sign(xPushVel);
 			if (MathF.Abs(xSwingVel) > 75) xSwingVel = 75 * MathF.Sign(xSwingVel);
@@ -1180,6 +1243,19 @@ public partial class Character : Actor, IDamagable {
 				);
 			}
 			vel.y = 0;
+		}
+
+		if (Global.level.checkCollisionActor(this, 0, 1) != null && threw) {
+			if (threwOwner != null) {
+				Damager.applyDamage(
+					threwOwner, 2, 1, Global.defFlinch, this,
+					false, (int)WeaponIds.RockF2Grab, 0, threwOwner?.character ?? this,
+					(int)ProjIds.RockF2Grab
+				);
+				threw = false;
+				threwOwner = null!;
+				vel.y = -360;
+			}
 		}
 
 		// This overrides the ground checks made by Actor.update();
@@ -1626,7 +1702,8 @@ public partial class Character : Actor, IDamagable {
 		}
 		if (!ignoreRideArmorHide && !string.IsNullOrEmpty(sprite?.name) && sprite.name.Contains("ra_hide")) return true;
 		if (specialState == (int)SpecialStateIds.AxlRoll ||
-			specialState == (int)SpecialStateIds.XTeleport
+			specialState == (int)SpecialStateIds.XTeleport ||
+			specialState == (int)SpecialStateIds.Dodge
 		) {
 			return true;
 		}
@@ -1678,6 +1755,7 @@ public partial class Character : Actor, IDamagable {
 	public int getShootXDir() {
 		int xDir = this.xDir;
 		if (charState is WallSlide) xDir *= -1;
+
 		return xDir;
 	}
 
@@ -2630,6 +2708,7 @@ public partial class Character : Actor, IDamagable {
 			bool isAxlSelfDamage = player.isAxl && damagerAlliance == player.alliance;
 			if (!isAxlSelfDamage) return false;
 		}
+		if (charState is ShieldBlock) return false;
 
 		// Self damaging projIds can go thru alliance check
 		bool isSelfDamaging =
@@ -2666,6 +2745,14 @@ public partial class Character : Actor, IDamagable {
 		if (attacker == player && axl?.isWhiteAxl() == true) {
 			damage = 0;
 		} */
+
+		//Aiming Laser damage.
+		if (projId == (int)ProjIds.AimingLaser) {
+			if (attacker?.character is MegamanX x && !x.aLaserTargets.Any(c => c == this)) {
+				return;
+			}
+		}
+		
 		if (Global.level.isRace() &&
 			damage != (decimal)Damager.envKillDamage &&
 			damage != (decimal)Damager.switchKillDamage &&
@@ -2772,7 +2859,7 @@ public partial class Character : Actor, IDamagable {
 
 		decimalHP = decimalHP - damage;
 		// We use this to attempt to reduce float errors.
-		player.health = float.Parse(decimalHP.ToString());
+		if (this is not SoulBodyClone) player.health = float.Parse(decimalHP.ToString());
 
 		if (player.showTrainingDps && player.health > 0 && originalDamage > 0) {
 			if (player.trainingDpsStartTime == 0) {
@@ -2858,6 +2945,17 @@ public partial class Character : Actor, IDamagable {
 						);
 					}
 				}
+				Weapon? forceNovaStrike = player.weapons.FirstOrDefault(w => w is ForceNovaStrike);
+				if (forceNovaStrike != null) {
+					float currentAmmo = forceNovaStrike.ammo;
+					forceNovaStrike.addAmmo(gigaAmmoToAdd, player);
+					if (player.isMainPlayer) {
+						Weapon.gigaAttackSoundLogic(
+							this, currentAmmo, forceNovaStrike.ammo,
+							forceNovaStrike.getAmmoUsage(0), forceNovaStrike.maxAmmo
+						);
+					}
+				}
 				//fgMoveAmmo += gigaAmmoToAdd;
 				//if (fgMoveAmmo > 32) fgMoveAmmo = 32;
 			}
@@ -2911,6 +3009,7 @@ public partial class Character : Actor, IDamagable {
 				}
 
 				killer.awardCurrency();
+				killer.onKillEffects();
 			} else if (Global.level.gameMode.level.is1v1()) {
 				// In 1v1 the other player should always be considered a killer to prevent suicide
 				var otherPlayer = Global.level.nonSpecPlayers().Find(p => p.id != player.id);
@@ -2924,6 +3023,7 @@ public partial class Character : Actor, IDamagable {
 				assister.addKill();
 
 				assister.awardCurrency();
+				assister.onKillEffects();
 			}
 			//bool isSuicide = killer == null || killer == player;
 			player.addDeath(false);
@@ -3040,7 +3140,7 @@ public partial class Character : Actor, IDamagable {
 		}
 	}
 
-	public void setHurt(int dir, int flinchFrames, bool spiked) {
+	public void setHurt(int dir, int flinchFrames, bool spiked, float? pushVel = null) {
 		if (!ownedByLocalPlayer) {
 			return;
 		}
@@ -3056,18 +3156,19 @@ public partial class Character : Actor, IDamagable {
 			if (hurtState.stateFrames <= flinchFrames) {
 				// You can probably add a check here that sets "hurtState.yStartPos" to null if you.
 				// Want to add a flinch attack that pushes up on chain-flinch.
-				changeState(new Hurt(dir, flinchFrames, false, hurtState.flinchYPos), true);
+				changeState(new Hurt(dir, flinchFrames, spiked, hurtState.flinchYPos, pushVel), true);
 				return;
 			}
 			return;
 		}
 		if (charState is GenericStun stunState) {
 			// We disable the jump as we mid-flinch movement.
-			changeState(new Hurt(dir, flinchFrames, true, stunState.flinchYPos), true);
+			changeState(new Hurt(dir, flinchFrames, true, stunState.flinchYPos, pushVel), true);
 			return;
 		}
 		if (charState is not Die and not InRideArmor and not InRideChaser) {
-			changeState(new Hurt(dir, flinchFrames, spiked), true);
+			float? yPos = spiked ? pos.y : null;
+			changeState(new Hurt(dir, flinchFrames, spiked, null, pushVel), true);
 			return;
 		}
 	}
@@ -3087,6 +3188,7 @@ public partial class Character : Actor, IDamagable {
 		chargeEffect?.destroy();
 		chargeSound?.destroy();
 		parasiteAnim?.destroySelf();
+		aLaserTargetAnim?.destroySelf();
 
 		// This ensures that the "onExit" charState function
 		// Can do any cleanup it needs to do without having to copy-paste that code here too.

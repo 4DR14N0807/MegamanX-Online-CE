@@ -14,6 +14,7 @@ public class Sprite {
 	public Collider[] hitboxes;
 	public Collider[][] frameHitboxes;
 
+	//There should be a better way to do this.
 	public static Texture xArmorBootsBitmap = null!;
 	public static Texture xArmorBodyBitmap = null!;
 	public static Texture xArmorHelmetBitmap = null!;
@@ -26,6 +27,12 @@ public class Sprite {
 	public static Texture xArmorBodyBitmap3 = null!;
 	public static Texture xArmorHelmetBitmap3 = null!;
 	public static Texture xArmorArmBitmap3 = null!;
+	public static Texture xArmorBootsBitmap4 = null!;
+	public static Texture xArmorBodyBitmap4 = null!;
+	public static Texture xArmorHelmetBitmap4 = null!;
+	public static Texture xArmorArmBitmap4 = null!;
+	public static Texture xArmorArmBitmap5 = null!;
+
 	public static Texture axlArmBitmap = null!;
 
 	public float time;
@@ -247,6 +254,8 @@ public class Sprite {
 				shader = Global.shaderWrappers.GetValueOrDefault("chargeYellow");
 			} else if (renderEffects.Contains(RenderEffectType.ChargeBlue)) {
 				shader = Global.shaderWrappers.GetValueOrDefault("chargeBlue");
+			} else if (renderEffects.Contains(RenderEffectType.ChargeRed)) {
+				shader = Global.shaderWrappers.GetValueOrDefault("chargeRed");
 			} else if (renderEffects.Contains(RenderEffectType.StealthModeBlue)) {
 				shader = Global.shaderWrappers.GetValueOrDefault("stealthmode_blue");
 			} else if (renderEffects.Contains(RenderEffectType.StealthModeRed)) {
@@ -474,10 +483,12 @@ public class Sprite {
 				cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true
 			);
 			if (armors[2] == 3) DrawWrappers.DrawTexture(xArmorHelmetBitmap3, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
+			if (armors[2] == 4) DrawWrappers.DrawTexture(xArmorHelmetBitmap4, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 
 			if (armors[0] == 1) DrawWrappers.DrawTexture(xArmorBootsBitmap, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 			if (armors[0] == 2) DrawWrappers.DrawTexture(xArmorBootsBitmap2, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 			if (armors[0] == 3) DrawWrappers.DrawTexture(xArmorBootsBitmap3, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
+			if (armors[0] == 4) DrawWrappers.DrawTexture(xArmorBootsBitmap4, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 
 			if (armors[1] == 1) DrawWrappers.DrawTexture(xArmorBodyBitmap, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 			if (armors[1] == 3) DrawWrappers.DrawTexture(xArmorBodyBitmap3, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
@@ -488,10 +499,14 @@ public class Sprite {
 				x + frameOffsetX, y + frameOffsetY,
 				zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true
 			);
+			if (armors[1] == 4) DrawWrappers.DrawTexture(xArmorBodyBitmap4, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
+
 
 			if (armors[3] == 1) DrawWrappers.DrawTexture(xArmorArmBitmap, currentFrame.rect.x1, currentFrame.rect.y1, currentFrame.rect.w(), currentFrame.rect.h(), x + frameOffsetX, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 			if (armors[3] == 2) DrawWrappers.DrawTexture(xArmorArmBitmap2, currentFrame.rect.x1 - flippedExtraW, currentFrame.rect.y1, currentFrame.rect.w() + extraW, currentFrame.rect.h(), x + frameOffsetX + xOff, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 			if (armors[3] == 3) DrawWrappers.DrawTexture(xArmorArmBitmap3, currentFrame.rect.x1 - flippedExtraW, currentFrame.rect.y1, currentFrame.rect.w() + extraW, currentFrame.rect.h(), x + frameOffsetX + xOff, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, x3ArmShaders, true);
+			if (armors[3] == 4) DrawWrappers.DrawTexture(xArmorArmBitmap4, currentFrame.rect.x1 - flippedExtraW, currentFrame.rect.y1, currentFrame.rect.w() + extraW, currentFrame.rect.h(), x + frameOffsetX + xOff, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
+			if (armors[3] == 5) DrawWrappers.DrawTexture(xArmorArmBitmap5, currentFrame.rect.x1 - flippedExtraW, currentFrame.rect.y1, currentFrame.rect.w() + extraW, currentFrame.rect.h(), x + frameOffsetX + xOff, y + frameOffsetY, zIndex, cx, cy, xDirArg, yDirArg, angle, alpha, shaders, true);
 		}
 
 		if (animData.isAxlSprite && drawAxlArms) {
@@ -878,6 +893,8 @@ public class AnimData {
 				shader = Global.shaderWrappers.GetValueOrDefault("chargeYellow");
 			} else if (renderEffects.Contains(RenderEffectType.ChargeBlue)) {
 				shader = Global.shaderWrappers.GetValueOrDefault("chargeBlue");
+			} else if (renderEffects.Contains(RenderEffectType.ChargeRed)) {
+				shader = Global.shaderWrappers.GetValueOrDefault("chargeRed");
 			} else if (renderEffects.Contains(RenderEffectType.StealthModeBlue)) {
 				shader = Global.shaderWrappers.GetValueOrDefault("stealthmode_blue");
 			} else if (renderEffects.Contains(RenderEffectType.StealthModeRed)) {
